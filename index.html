@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Central Térmica</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .grid-bg {
+            background-image:
+                linear-gradient(rgba(0, 0, 0, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 0, 0, 0.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        .component-icon {
+            cursor: grab;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .component-icon:active {
+            cursor: grabbing;
+            transform: scale(1.1);
+            z-index: 1000;
+        }
+        .canvas-item {
+            position: absolute;
+            width: 80px; /* Item size */
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: grab;
+            border: 2px solid transparent;
+            transition: border-color 0.2s, background-color 0.2s, transform 0.2s ease, box-shadow 0.1s linear, height 0.2s ease;
+            user-select: none; /* Prevent text selection while dragging */
+        }
+        .canvas-item .inner-content {
+             transition: transform 0.2s ease;
+             display: flex;
+             flex-direction: column;
+             align-items: center;
+             justify-content: center;
+        }
+        .canvas-item.selected {
+            border-color: #3b82f6; /* blue-500 */
+            background-color: rgba(59, 130, 246, 0.1);
+            border-radius: 0.5rem;
+        }
+        .canvas-item .controls {
+            display: none;
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            border-radius: 1rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            padding: 2px;
+            z-index: 20;
+        }
+        .canvas-item.selected .controls {
+            display: flex;
+        }
+        .control-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 50%;
+            transition: background-color 0.2s;
+        }
+        .control-btn:hover {
+            background-color: #f3f4f6;
+        }
+        .canvas-item.dragging {
+            cursor: grabbing;
+            z-index: 1001;
+            transform: scale(1.05);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        #properties-panel {
+            transition: transform 0.3s ease-in-out;
+        }
+        /* Connectors and Pipes */
+        .connector {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            cursor: crosshair;
+            z-index: 10;
+            pointer-events: auto; /* Allow clicks on connectors */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            line-height: 1;
+            transition: transform 0.2s;
+        }
+        .connector:hover {
+            transform: scale(1.3) !important;
+        }
+        .connector[data-type*="in"] { color: #3b82f6; } /* blue-500 for IN */
+        .connector[data-type*="out"] { color: #ef4444; } /* red-500 for OUT */
+        /* Overrides for Condenser */
+        .connector[data-type*="in_cond"] { color: #8b5cf6; } /* violet-500 */
+        .connector[data-type*="out_cond"] { color: #16a34a; } /* green-600 */
+
+        .connector-pos-top { top: -12px; left: 50%; transform: translateX(-50%); }
+        .connector-pos-bottom { bottom: -12px; left: 50%; transform: translateX(-50%); }
+        .connector-pos-left { left: -12px; top: 50%; transform: translateY(-50%); }
+        .connector-pos-right { right: -12px; top: 50%; transform: translateY(-50%); }
+        .connector-pos-left-top { left: -12px; top: 25%; transform: translateY(-50%); }
+        .connector-pos-left-bottom { left: -12px; top: 75%; transform: translateY(-50%); }
+        .connector-pos-right-top { right: -12px; top: 25%; transform: translateY(-50%); }
+        .connector-pos-right-bottom { right: -12px; top: 75%; transform: translateY(-50%); }
+
+        #pipe-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+        #pipe-svg polyline {
+            fill: none;
+            stroke-width: 3px;
+            stroke: #4b5563; /* gray-600 */
+            pointer-events: auto;
+            cursor: pointer;
+            transition: stroke-width 0.2s, stroke 0.2s;
+        }
+        #pipe-svg polyline:hover {
+            stroke-width: 5px;
+        }
+        .vertex-handle {
+            cursor: move;
+            fill: white;
+            stroke: #3b82f6;
+            stroke-width: 2px;
+            pointer-events: auto;
+        }
+        .legend-violet { color: #8b5cf6; }
+        .legend-green { color: #16a34a; }
+
+        .sim-label {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 1px solid #e5e7eb;
+            border-radius: 0.375rem;
+            padding: 4px 8px;
+            font-size: 10px;
+            pointer-events: none;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            white-space: nowrap;
+            z-index: 5;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 flex h-screen overflow-hidden">
+
+    <!-- Sidebar with Equipment -->
+    <aside class="w-64 bg-white p-4 shadow-lg flex flex-col overflow-y-auto">
+        <div id="component-list" class="space-y-4">
+            <!-- Categories and components will be injected here by JavaScript -->
+        </div>
+        <div class="mt-auto pt-4 border-t">
+            <h3 class="text-lg font-bold mb-2 text-gray-700">Legenda</h3>
+            <div class="space-y-2 text-sm">
+                <div class="flex items-center">
+                    <div class="w-4 h-4 text-blue-500 flex items-center justify-center text-xl">▶</div>
+                    <span>Entrada (Primário)</span>
+                </div>
+                <div class="flex items-center">
+                    <div class="w-4 h-4 text-red-500 flex items-center justify-center text-xl">▶</div>
+                    <span>Saída (Primário)</span>
+                </div>
+                <div class="flex items-center">
+                    <div class="w-4 h-4 legend-violet flex items-center justify-center text-xl">▶</div>
+                    <span>Entrada Condensador</span>
+                </div>
+                <div class="flex items-center">
+                    <div class="w-4 h-4 legend-green flex items-center justify-center text-xl">▶</div>
+                    <span>Saída Condensador</span>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Canvas Area -->
+    <main class="flex-1 flex flex-col">
+        <header class="bg-white p-4 shadow-md z-10 flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800">Simulador de Consumos Energéticos</h1>
+                <p class="text-sm text-gray-500">Arraste os equipamentos. Dê um duplo clique numa tubagem para adicionar um ponto de ajuste.</p>
+            </div>
+            <button id="simulate-btn" class="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+                Simular
+            </button>
+        </header>
+        <div class="flex-1 relative">
+            <div id="canvas" class="w-full h-full grid-bg relative overflow-auto">
+                 <svg id="pipe-svg">
+                    <g id="pipe-group"></g>
+                    <g id="handle-group"></g>
+                 </svg>
+                <!-- Dropped components will appear here -->
+            </div>
+        </div>
+    </main>
+
+    <!-- Properties Panel -->
+    <aside id="properties-panel" class="w-80 bg-white p-4 shadow-lg transform translate-x-full fixed top-0 right-0 h-full z-20 overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-bold text-gray-700">Propriedades</h3>
+            <button id="close-panel-btn" class="p-1 rounded-full hover:bg-gray-200">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <div id="properties-content">
+            <p class="text-gray-500">Selecione um componente para ver as suas propriedades.</p>
+        </div>
+    </aside>
+
+    <script>
+        const components = [
+            // Produção
+            { id: 'boiler_condensing', name: 'Caldeira Cond.', icon: '🔥', params: { potencia_kw: 100, eficiencia: 95, caudal_agua_m3h: 4.3, temperatura_entrada_c: 50, temperatura_saida_c: 60, diferencial_temperatura_dt: 10 }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Produção' },
+            { id: 'boiler_conventional', name: 'Caldeira Conv.', icon: '🔥', params: { potencia_kw: 120, eficiencia: 85, caudal_agua_m3h: 5.1, temperatura_entrada_c: 70, temperatura_saida_c: 80, diferencial_temperatura_dt: 10 }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Produção' },
+            { id: 'hp_air', name: 'Bomba Calor Ar', icon: '💨', params: { capacidade_kw: 50, cop: 3.5, caudal_agua_m3h: 8.6, temperatura_entrada_c: 40, temperatura_saida_c: 45, diferencial_temperatura_dt: 5 }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Produção' },
+            { 
+                id: 'hp_water', 
+                name: 'Bomba Calor Água', 
+                icon: '💧', 
+                params: { 
+                    capacidade_util_kw: 60,
+                    capacidade_rejeicao_kw: 75,
+                    cop: 4.5,
+                    caudal_carga_m3h: 10.3,
+                    temp_ent_carga_c: 40,
+                    temp_sai_carga_c: 45,
+                    dt_carga_c: 5,
+                    caudal_cond_m3h: 12.9,
+                    temp_ent_cond_c: 25,
+                    temp_sai_cond_c: 30,
+                    dt_cond_c: 5
+                }, 
+                connectors: [
+                    { type: 'in_cond', pos: 'left-top' }, 
+                    { type: 'out_cond', pos: 'left-bottom' }, 
+                    { type: 'in_evap', pos: 'right-bottom' }, 
+                    { type: 'out_evap', pos: 'right-top' }
+                ], 
+                category: 'Produção' 
+            },
+            { id: 'chiller_air', name: 'Chiller Ar', icon: '❄️', params: { capacidade_kw: 200, eer: 3.0, caudal_agua_m3h: 34.4, temperatura_entrada_c: 12, temperatura_saida_c: 7, diferencial_temperatura_dt: 5 }, connectors: [{ type: 'in', pos: 'right' }, { type: 'out', pos: 'left' }], category: 'Produção' },
+            { 
+                id: 'chiller_water', 
+                name: 'Chiller Água', 
+                icon: '❄️', 
+                params: { 
+                    capacidade_evap_kw: 250,
+                    capacidade_cond_kw: 300,
+                    eer: 5.0,
+                    caudal_evap_m3h: 43.0,
+                    temp_ent_evap_c: 12,
+                    temp_sai_evap_c: 7,
+                    dt_evap_c: 5,
+                    caudal_cond_m3h: 51.6,
+                    temp_ent_cond_c: 30,
+                    temp_sai_cond_c: 35,
+                    dt_cond_c: 5
+                }, 
+                connectors: [
+                    { type: 'out_evap', pos: 'left-top' }, 
+                    { type: 'in_evap', pos: 'left-bottom' }, 
+                    { type: 'in_cond', pos: 'right-top' }, 
+                    { type: 'out_cond', pos: 'right-bottom' }
+                ], 
+                category: 'Produção' 
+            },
+            { id: 'emitter_load', name: 'Carga Emissora', icon: '☀️', params: { potencia_kw: 100, caudal_agua_m3h: 'Auto', temperatura_entrada_c: 70, temperatura_saida_c: 80, diferencial_temperatura_dt: 10 }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Produção' },
+
+            // Consumo
+            { id: 'generic_load', name: 'Carga Dissipadora', icon: '🏠', params: { potencia_kw: 50, caudal_agua_m3h: 'Auto', temperatura_entrada_c: 60, temperatura_saida_c: 50, diferencial_temperatura_dt: 10 }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Consumo' },
+            { id: 'ahu_load', name: 'UTA', icon: '🏢', params: { potencia_kw: 80, caudal_agua_m3h: 'Auto', temperatura_entrada_c: 7, temperatura_saida_c: 12, diferencial_temperatura_dt: 5 }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Consumo' },
+            { id: 'fancoil', name: 'Fancoil', icon: '🌀', params: { potencia_kw: 10, caudal_agua_m3h: 'Auto', temperatura_entrada_c: 7, temperatura_saida_c: 12, diferencial_temperatura_dt: 5 }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Consumo' },
+            { id: 'radiant_floor', name: 'Pav. Radiante', icon: '♨️', params: { area_m2: 100, potencia_w_m2: 50, temperatura_entrada_c: 35, temperatura_saida_c: 30, diferencial_temperatura_dt: 5 }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Consumo' },
+            { id: 'dhw', name: 'AQS', icon: '🚿', params: { volume_l: 500, potencia_kw: 30, temperatura_entrada_c: 15, temperatura_saida_c: 60, diferencial_temperatura_dt: 45 }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Consumo' },
+            { id: 'pool', name: 'Piscina', icon: '🏊', params: { volume_m3: 50, potencia_kw: 25, temperatura_c: 28 }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Consumo' },
+            
+            // Dissipadores
+            { id: 'cooling_tower_open', name: 'Torre Aberta', icon: '🗼', params: { capacidade_rejeicao_kw: 300, potencia_vent_kw: 10, caudal_agua_m3h: 51.6, temperatura_c: 30 }, connectors: [{ type: 'in', pos: 'bottom' }, { type: 'out', pos: 'top' }], category: 'Dissipadores' },
+            { id: 'cooling_tower_closed', name: 'Torre Fechada', icon: '🗼', params: { capacidade_rejeicao_kw: 280, potencia_vent_kw: 12, caudal_agua_m3h: 48.1, temperatura_c: 30 }, connectors: [{ type: 'in', pos: 'bottom' }, { type: 'out', pos: 'top' }], category: 'Dissipadores' },
+            { id: 'drycooler_dry', name: 'Drycooler Seco', icon: '🌬️', params: { capacidade_rejeicao_kw: 150, potencia_vent_kw: 8, caudal_agua_m3h: 25.8, temperatura_c: 40 }, connectors: [{ type: 'in', pos: 'bottom' }, { type: 'out', pos: 'top' }], category: 'Dissipadores' },
+            { id: 'drycooler_adiabatic', name: 'Drycooler Adiab.', icon: '💦', params: { capacidade_rejeicao_kw: 180, potencia_vent_kw: 9, caudal_agua_m3h: 30.9, temperatura_c: 40 }, connectors: [{ type: 'in', pos: 'bottom' }, { type: 'out', pos: 'top' }], category: 'Dissipadores' },
+
+            // Distribuição
+            { id: 'buffer_tank', name: 'Depósito Inércia', icon: '🔋', params: { volume_l: 1000, caudal_agua_m3h: 'Auto', temperatura_c: 'Auto' }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Distribuição' },
+            { id: 'valve_3_way', name: 'Válvula 3 Vias', icon: '밸', params: { dn: 50, kvs: 40, caudal_agua_m3h: 'Auto', temperatura_c: 'Auto' }, connectors: [{ type: 'in', pos: 'bottom' }, { type: 'out', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Distribuição' },
+            { id: 'valve_2_way', name: 'Válvula 2 Vias', icon: '밸', params: { dn: 50, kvs: 32, caudal_agua_m3h: 'Auto', temperatura_c: 'Auto' }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Distribuição' },
+            { id: 'heat_exchanger', name: 'Permutador', icon: '↔️', params: { tipo: 'Placas', area_m2: 5, u_value: 1500, caudal_agua_m3h: 'Auto', temperatura_c: 'Auto' }, connectors: [{ type: 'in_p', pos: 'left-top' }, { type: 'out_p', pos: 'left-bottom' }, { type: 'in_s', pos: 'right-top' }, { type: 'out_s', pos: 'right-bottom' }], category: 'Distribuição' },
+            { id: 'flow_valve', name: 'Válvula Regul.', icon: '🎛️', params: { dn: 50, caudal_max_m3h: 20, temperatura_c: 'Auto' }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Distribuição' },
+            { id: 'collector', name: 'Coletor', icon: '☲', params: { num_entradas: 3, num_saidas: 3, caudal_agua_m3h: 'Auto', temperatura_c: 'Auto' }, connectors: [], category: 'Distribuição'},
+
+            // Impulsão
+            { id: 'pump_const', name: 'Bomba Vel. Const.', icon: '🔄', params: { altura_mca: 15, potencia_kw: 2.2, caudal_agua_m3h: 10, temperatura_c: 'Auto' }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Impulsão' },
+            { id: 'pump_var', name: 'Bomba Vel. Var.', icon: '📈', params: { altura_mca: 15, potencia_kw: 1.8, caudal_agua_m3h: 10, modo_controlo: 'Pressão', temperatura_c: 'Auto' }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Impulsão' },
+        ];
+        
+        const canvas = document.getElementById('canvas');
+        const pipeSvg = document.getElementById('pipe-svg');
+        const pipeGroup = document.getElementById('pipe-group');
+        const handleGroup = document.getElementById('handle-group');
+        const componentList = document.getElementById('component-list');
+        const propertiesPanel = document.getElementById('properties-panel');
+        const propertiesContent = document.getElementById('properties-content');
+        const closePanelBtn = document.getElementById('close-panel-btn');
+        const simulateBtn = document.getElementById('simulate-btn');
+
+        const GRID_SNAP_SIZE = 100;
+        const PIPE_GRID_SNAP = 20;
+        const COMPONENT_SIZE = 80;
+
+        let placedComponents = {};
+        let connections = {};
+        let selectedComponentId = null;
+        let selectedPipeId = null;
+        let idCounter = 0;
+        let draggedElement = null;
+        let offsetX, offsetY;
+
+        // --- State Variables ---
+        let isConnecting = false;
+        let startConnector = null;
+        let tempPipe = null;
+        let draggedVertex = null;
+        let isSimulating = false;
+        let simulationResults = {};
+
+        // --- Component Creation ---
+        function initializeComponentList() {
+            componentList.innerHTML = '';
+            const categoryOrder = ['Produção', 'Consumo', 'Distribuição', 'Dissipadores', 'Impulsão'];
+
+            categoryOrder.forEach(categoryName => {
+                const componentsInCategory = components.filter(c => c.category === categoryName);
+                if (componentsInCategory.length === 0) return;
+
+                const categoryTitle = document.createElement('h3');
+                categoryTitle.className = 'text-lg font-bold text-gray-700 border-b pb-1 mb-2';
+                categoryTitle.textContent = categoryName;
+                componentList.appendChild(categoryTitle);
+
+                const gridContainer = document.createElement('div');
+                gridContainer.className = 'grid grid-cols-2 gap-4';
+                
+                componentsInCategory.forEach(comp => {
+                    const div = document.createElement('div');
+                    div.className = 'component-icon flex flex-col items-center p-2 bg-gray-50 border rounded-lg hover:shadow-md hover:bg-blue-50';
+                    div.draggable = true;
+                    div.dataset.componentId = comp.id;
+                    div.innerHTML = `<div class="text-3xl">${comp.icon}</div><span class="text-xs text-center text-gray-600 mt-1">${comp.name}</span>`;
+                    div.addEventListener('dragstart', (e) => e.dataTransfer.setData('text/plain', comp.id));
+                    gridContainer.appendChild(div);
+                });
+
+                componentList.appendChild(gridContainer);
+            });
+        }
+        initializeComponentList();
+
+        canvas.addEventListener('dragover', (e) => e.preventDefault());
+        canvas.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const componentId = e.dataTransfer.getData('text/plain');
+            const componentData = components.find(c => c.id === componentId);
+            if (!componentData) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const gridX = Math.floor(x / GRID_SNAP_SIZE);
+            const gridY = Math.floor(y / GRID_SNAP_SIZE);
+
+            if (!isCellOccupied(gridX, gridY)) {
+                createComponentOnCanvas(componentData, gridX, gridY);
+            }
+        });
+
+        function getArrowCharacter(pos, type) {
+            const isOut = type.includes('out');
+            if (pos.includes('left')) return isOut ? '◀' : '▶';
+            if (pos.includes('right')) return isOut ? '▶' : '◀';
+            if (pos.includes('top')) return isOut ? '▲' : '▼';
+            if (pos.includes('bottom')) return isOut ? '▼' : '▲';
+            return '▶'; // Default
+        }
+        
+        function createComponentOnCanvas(componentData, gridX, gridY) {
+            const uniqueId = `inst_${idCounter++}`;
+            const newItem = document.createElement('div');
+            newItem.id = uniqueId;
+            newItem.className = 'canvas-item bg-white/80 backdrop-blur-sm rounded-lg shadow-sm';
+            
+            if (componentData.id === 'collector') {
+                newItem.style.height = '160px';
+            }
+
+            const pixelX = gridX * GRID_SNAP_SIZE;
+            const pixelY = gridY * GRID_SNAP_SIZE;
+            newItem.style.left = `${pixelX}px`;
+            newItem.style.top = `${pixelY}px`;
+            
+            newItem.innerHTML = `
+                <div class="controls">
+                    <button class="control-btn rotate-btn" title="Rodar">
+                        <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M20 20v-5h-5"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 9a9 9 0 0114.13-6.36M20 15a9 9 0 01-14.13 6.36"></path></svg>
+                    </button>
+                    <button class="control-btn flip-btn" title="Espelho">
+                        <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l-7-7 7-7m5 14l7-7-7-7"></path><path d="M12 3v18"></path></svg>
+                    </button>
+                </div>
+                <div class="inner-content pointer-events-none">
+                    <div class="text-3xl">${componentData.icon}</div>
+                    <span class="text-xs text-center text-gray-700 mt-1">${componentData.name}</span>
+                </div>`;
+            
+            canvas.appendChild(newItem);
+
+            // Store data
+            placedComponents[uniqueId] = {
+                type: componentData.id, name: componentData.name, icon: componentData.icon,
+                params: JSON.parse(JSON.stringify(componentData.params)),
+                gridX: gridX, gridY: gridY,
+                rotation: 0, flipH: false
+            };
+            
+            if (componentData.id === 'collector') {
+                redrawCollectorConnectors(uniqueId);
+            } else {
+                 componentData.connectors.forEach((conn, index) => {
+                    const connectorEl = document.createElement('div');
+                    connectorEl.className = `connector connector-pos-${conn.pos}`;
+                    connectorEl.dataset.componentId = uniqueId;
+                    connectorEl.dataset.connectorIndex = index;
+                    connectorEl.dataset.type = conn.type;
+                    connectorEl.innerHTML = getArrowCharacter(conn.pos, conn.type);
+                    newItem.appendChild(connectorEl);
+                    connectorEl.addEventListener('click', handleConnectorClick);
+                });
+            }
+
+            // Add Event Listeners
+            newItem.querySelector('.rotate-btn').addEventListener('click', (e) => { e.stopPropagation(); rotateComponent(uniqueId); });
+            newItem.querySelector('.flip-btn').addEventListener('click', (e) => { e.stopPropagation(); flipComponent(uniqueId); });
+            newItem.addEventListener('mousedown', handleMouseDown);
+            newItem.addEventListener('click', (e) => { e.stopPropagation(); selectComponent(uniqueId); });
+        }
+
+        // --- Transformations ---
+        function rotateComponent(id) {
+            const component = placedComponents[id];
+            component.rotation = (component.rotation + 90) % 360;
+            applyTransformations(id);
+        }
+
+        function flipComponent(id) {
+            const component = placedComponents[id];
+            component.flipH = !component.flipH;
+
+            if (component.type === 'collector') {
+                 redrawCollectorConnectors(id);
+            }
+
+            applyTransformations(id);
+        }
+
+        function applyTransformations(id) {
+            const component = placedComponents[id];
+            const element = document.getElementById(id);
+            const innerContent = element.querySelector('.inner-content');
+
+            element.style.transform = `rotate(${component.rotation}deg) scaleX(${component.flipH ? -1 : 1})`;
+            innerContent.style.transform = `scaleX(${component.flipH ? -1 : 1})`;
+
+            if (component.type === 'collector') {
+                updatePipesForComponent(id);
+                return;
+            }
+
+            const originalComponentData = components.find(c => c.id === component.type);
+            const connectorElements = element.querySelectorAll('.connector');
+            
+            connectorElements.forEach((connectorEl, index) => {
+                const originalConnector = originalComponentData.connectors[index];
+                const newPos = calculateNewPosition(originalConnector.pos, component.rotation, component.flipH);
+                
+                let currentType = originalConnector.type;
+                if (component.flipH) {
+                    if (currentType.includes('in')) currentType = currentType.replace('in', 'out');
+                    else if (currentType.includes('out')) currentType = currentType.replace('out', 'in');
+                }
+                connectorEl.dataset.type = currentType;
+                connectorEl.innerHTML = getArrowCharacter(newPos, currentType);
+
+                connectorEl.className = 'connector';
+                newPos.split('-').forEach(p => connectorEl.classList.add(`connector-pos-${p}`));
+            });
+            
+            updatePipesForComponent(id);
+        }
+
+        function calculateNewPosition(originalPos, rotation, flipH) {
+            let pos = originalPos;
+
+            if (flipH) {
+                if (pos.includes('left')) pos = pos.replace('left', 'right');
+                else if (pos.includes('right')) pos = pos.replace('right', 'left');
+            }
+
+            const rotations = rotation / 90;
+            for (let i = 0; i < rotations; i++) {
+                const parts = pos.split('-');
+                const newParts = parts.map(part => {
+                    switch (part) {
+                        case 'top': return 'right';
+                        case 'right': return 'bottom';
+                        case 'bottom': return 'left';
+                        case 'left': return 'top';
+                        default: return part;
+                    }
+                });
+                pos = (newParts.length === 2 && (newParts[0] === 'left' || newParts[0] === 'right')) ? newParts.join('-') : newParts.reverse().join('-');
+            }
+            return pos;
+        }
+
+        // --- Piping Logic ---
+        function handleConnectorClick(e) {
+            e.stopPropagation();
+            const connector = e.target;
+            const componentId = connector.dataset.componentId;
+            const connectorIndex = connector.dataset.connectorIndex;
+
+            if (!isConnecting) {
+                if (isConnectorUsed(componentId, connectorIndex)) return;
+                isConnecting = true;
+                startConnector = connector;
+                startConnector.style.transform = 'scale(1.3)';
+                const startPos = getConnectorCenter(startConnector);
+                tempPipe = document.createElementNS("http://www.w3.org/2000/svg", 'line');
+                tempPipe.setAttribute('x1', startPos.x); tempPipe.setAttribute('y1', startPos.y);
+                tempPipe.setAttribute('x2', startPos.x); tempPipe.setAttribute('y2', startPos.y);
+                tempPipe.style.stroke = "#3b82f6"; tempPipe.style.strokeWidth = "3px"; tempPipe.style.pointerEvents = "none";
+                pipeGroup.appendChild(tempPipe);
+                canvas.addEventListener('mousemove', updateTempPipe);
+            } else {
+                const endConnector = connector;
+                const endComponentId = endConnector.dataset.componentId;
+                const endConnectorIndex = endConnector.dataset.connectorIndex;
+
+                if (isConnectorUsed(endComponentId, endConnectorIndex)) { cancelConnection(); return; }
+
+                const startType = startConnector.dataset.type;
+                const endType = endConnector.dataset.type;
+
+                if (startConnector.dataset.componentId === endConnector.dataset.componentId ||
+                    (startType.includes('in') && endType.includes('in')) ||
+                    (startType.includes('out') && endType.includes('out'))) {
+                    cancelConnection(); return;
+                }
+                
+                const startPos = getConnectorCenter(startConnector);
+                const endPos = getConnectorCenter(endConnector);
+                
+                const connId = `conn_${idCounter++}`;
+                const polyline = document.createElementNS("http://www.w3.org/2000/svg", 'polyline');
+
+                connections[connId] = {
+                    from: { componentId: startConnector.dataset.componentId, connectorIndex: startConnector.dataset.connectorIndex },
+                    to: { componentId: endComponentId, connectorIndex: endConnectorIndex },
+                    line: polyline,
+                    points: [startPos, endPos],
+                    params: { dn: 50, comprimento_m: 10, caudal_m3h: 'Auto', velocidade_ms: 'Auto', perda_carga_mca: 'Auto', temperatura_c: 'Auto' }
+                };
+
+                polyline.dataset.connId = connId;
+                pipeGroup.appendChild(polyline);
+                redrawPolyline(connId);
+                
+                polyline.addEventListener('click', (e) => { e.stopPropagation(); selectPipe(connId); });
+                polyline.addEventListener('dblclick', (e) => { e.stopPropagation(); addVertexToPipe(connId, e); });
+                
+                cancelConnection();
+            }
+        }
+        
+        function updateTempPipe(e) {
+            const canvasRect = canvas.getBoundingClientRect();
+            const x = e.clientX - canvasRect.left; const y = e.clientY - canvasRect.top;
+            tempPipe.setAttribute('x2', x); tempPipe.setAttribute('y2', y);
+        }
+        
+        function cancelConnection() {
+            if (tempPipe) tempPipe.remove();
+            if(startConnector) startConnector.style.transform = '';
+            isConnecting = false; startConnector = null; tempPipe = null;
+            canvas.removeEventListener('mousemove', updateTempPipe);
+        }
+        
+        function getConnectorCenter(connectorEl) {
+            const canvasRect = canvas.getBoundingClientRect();
+            const connectorRect = connectorEl.getBoundingClientRect();
+            return {
+                x: connectorRect.left - canvasRect.left + (connectorRect.width / 2),
+                y: connectorRect.top - canvasRect.top + (connectorRect.height / 2)
+            };
+        }
+        
+        function isConnectorUsed(componentId, connectorIndex) {
+            return Object.values(connections).some(c => 
+                (c.from.componentId == componentId && c.from.connectorIndex == connectorIndex) ||
+                (c.to.componentId == componentId && c.to.connectorIndex == connectorIndex)
+            );
+        }
+        
+        function redrawPolyline(connId) {
+            const conn = connections[connId];
+            if (!conn) return;
+            const pointsString = conn.points.map(p => `${p.x},${p.y}`).join(' ');
+            conn.line.setAttribute('points', pointsString);
+        }
+
+        function addVertexToPipe(connId, e) {
+            const conn = connections[connId];
+            if (!conn) return;
+
+            const canvasRect = canvas.getBoundingClientRect();
+            const newPoint = { x: e.clientX - canvasRect.left, y: e.clientY - canvasRect.top };
+
+            let bestSegmentIndex = 0;
+            let minDistance = Infinity;
+
+            for (let i = 0; i < conn.points.length - 1; i++) {
+                const p1 = conn.points[i];
+                const p2 = conn.points[i + 1];
+                const distance = pointToSegmentDistance(newPoint, p1, p2);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    bestSegmentIndex = i;
+                }
+            }
+            conn.points.splice(bestSegmentIndex + 1, 0, newPoint);
+            redrawPolyline(connId);
+            if (selectedPipeId === connId) createVertexHandles(connId);
+        }
+        
+        // --- Drag and Drop Logic ---
+        function handleMouseMove(e) {
+            if (draggedElement) {
+                const canvasRect = canvas.getBoundingClientRect();
+                let x = e.clientX - canvasRect.left - offsetX; let y = e.clientY - canvasRect.top - offsetY;
+                x = Math.max(0, Math.min(x, canvas.clientWidth - COMPONENT_SIZE));
+                y = Math.max(0, Math.min(y, canvas.clientHeight - COMPONENT_SIZE));
+                draggedElement.style.left = `${x}px`; draggedElement.style.top = `${y}px`;
+                updatePipesForComponent(draggedElement.id);
+            } else if (draggedVertex) {
+                const canvasRect = canvas.getBoundingClientRect();
+                const x = e.clientX - canvasRect.left;
+                const y = e.clientY - canvasRect.top;
+                const newX = Math.round(x / PIPE_GRID_SNAP) * PIPE_GRID_SNAP;
+                const newY = Math.round(y / PIPE_GRID_SNAP) * PIPE_GRID_SNAP;
+
+                const { connId, pointIndex } = draggedVertex;
+                connections[connId].points[pointIndex] = { x: newX, y: newY };
+                
+                draggedVertex.element.setAttribute('cx', newX);
+                draggedVertex.element.setAttribute('cy', newY);
+                redrawPolyline(connId);
+            }
+        }
+
+        function handleMouseUp(e) {
+            if (draggedElement) {
+                const id = draggedElement.id;
+                const originalGridPos = { x: placedComponents[id].gridX, y: placedComponents[id].gridY };
+                const finalLeft = parseFloat(draggedElement.style.left); const finalTop = parseFloat(draggedElement.style.top);
+                const newGridX = Math.round(finalLeft / GRID_SNAP_SIZE); const newGridY = Math.round(finalTop / GRID_SNAP_SIZE);
+                if (!isCellOccupied(newGridX, newGridY, id)) {
+                    placedComponents[id].gridX = newGridX; placedComponents[id].gridY = newGridY;
+                } else {
+                    placedComponents[id].gridX = originalGridPos.x; placedComponents[id].gridY = originalGridPos.y;
+                }
+                const finalPixelX = placedComponents[id].gridX * GRID_SNAP_SIZE;
+                const finalPixelY = placedComponents[id].gridY * GRID_SNAP_SIZE;
+                draggedElement.style.left = `${finalPixelX}px`;
+                draggedElement.style.top = `${finalPixelY}px`;
+                updatePipesForComponent(id);
+                draggedElement.classList.remove('dragging');
+                draggedElement = null;
+                 if (isSimulating) { updateSimulationView(); }
+            }
+            if (draggedVertex) {
+                draggedVertex = null;
+                 if (isSimulating) { updateSimulationView(); }
+            }
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        }
+        
+        function updatePipesForComponent(componentId) {
+            for (const connId in connections) {
+                const conn = connections[connId];
+                let changed = false;
+                if (conn.from.componentId === componentId) {
+                    const fromConnector = document.querySelector(`.connector[data-component-id="${conn.from.componentId}"][data-connector-index="${conn.from.connectorIndex}"]`);
+                    if(fromConnector) { conn.points[0] = getConnectorCenter(fromConnector); changed = true; }
+                }
+                if (conn.to.componentId === componentId) {
+                    const toConnector = document.querySelector(`.connector[data-component-id="${conn.to.componentId}"][data-connector-index="${conn.to.connectorIndex}"]`);
+                    if(toConnector) { conn.points[conn.points.length - 1] = getConnectorCenter(toConnector); changed = true; }
+                }
+                if(changed) redrawPolyline(connId);
+            }
+        }
+        
+        canvas.addEventListener('click', (e) => {
+            if (isConnecting) cancelConnection();
+            else closePanel();
+        });
+        
+        function isCellOccupied(gridX, gridY, excludeId = null) {
+            return Object.keys(placedComponents).some(id => id !== excludeId && placedComponents[id].gridX === gridX && placedComponents[id].gridY === gridY);
+        }
+
+        function handleMouseDown(e) {
+            if (e.target.closest('.control-btn') || e.target.classList.contains('connector')) return;
+            e.preventDefault(); e.stopPropagation();
+            draggedElement = e.target.closest('.canvas-item');
+            if (!draggedElement) return;
+            selectComponent(draggedElement.id);
+            draggedElement.classList.add('dragging');
+            const rect = draggedElement.getBoundingClientRect();
+            offsetX = e.clientX - rect.left; offsetY = e.clientY - rect.top;
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+        }
+
+        // --- UI and Properties Panel ---
+        function selectComponent(id) {
+            if (selectedComponentId === id) return;
+            closePanel(); 
+            selectedComponentId = id;
+            document.getElementById(id).classList.add('selected');
+            updateComponentPropertiesPanel(placedComponents[id], id);
+            propertiesPanel.classList.remove('translate-x-full');
+        }
+
+        function selectPipe(id) {
+            if (selectedPipeId === id) return;
+            closePanel(); 
+            selectedPipeId = id;
+            const conn = connections[id];
+            if (conn) {
+                conn.line.style.stroke = '#3b82f6'; 
+                conn.line.style.strokeWidth = '5px';
+                updatePipePropertiesPanel(id);
+                createVertexHandles(id);
+                propertiesPanel.classList.remove('translate-x-full');
+            }
+        }
+
+        function createVertexHandles(connId) {
+            removeVertexHandles();
+            const conn = connections[connId];
+            if (!conn) return;
+            conn.points.forEach((point, index) => {
+                // Do not create handles for start and end points connected to components
+                if (index === 0 || index === conn.points.length - 1) return;
+
+                const handle = document.createElementNS("http://www.w3.org/2000/svg", 'circle');
+                handle.setAttribute('cx', point.x);
+                handle.setAttribute('cy', point.y);
+                handle.setAttribute('r', 6);
+                handle.classList.add('vertex-handle');
+                handle.dataset.connId = connId;
+                handle.dataset.pointIndex = index;
+                handleGroup.appendChild(handle);
+
+                handle.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
+                    draggedVertex = {
+                        connId: e.target.dataset.connId,
+                        pointIndex: parseInt(e.target.dataset.pointIndex),
+                        element: e.target
+                    };
+                    document.addEventListener('mousemove', handleMouseMove);
+                    document.addEventListener('mouseup', handleMouseUp);
+                });
+            });
+        }
+
+        function removeVertexHandles() {
+            handleGroup.innerHTML = '';
+        }
+
+        function changeCollectorPorts(id, portType, delta) {
+            const component = placedComponents[id];
+            if (!component) return;
+            const paramKey = `num_${portType}`;
+            let num = component.params[paramKey];
+            num += delta;
+            if (num < 1) num = 1;
+            if (num > 5) num = 5;
+            component.params[paramKey] = num;
+            
+            redrawCollectorConnectors(id);
+            updateComponentPropertiesPanel(component, id); // Refresh panel
+        }
+
+        function redrawCollectorConnectors(id) {
+            const component = placedComponents[id];
+            const element = document.getElementById(id);
+            if (!component || !element) return;
+            
+            element.querySelectorAll('.connector').forEach(c => c.remove());
+
+            const num_entradas = component.params.num_entradas;
+            const num_saidas = component.params.num_saidas;
+            const isFlipped = component.flipH;
+
+            // Entradas (Left side)
+            for (let i = 0; i < num_entradas; i++) {
+                const yPercent = (i + 1) * 100 / (num_entradas + 1);
+                const type = isFlipped ? 'out' : 'in';
+                const connector = document.createElement('div');
+                connector.className = 'connector';
+                connector.dataset.componentId = id;
+                connector.dataset.connectorIndex = i; // Index from 0 to num_entradas-1
+                connector.dataset.type = `${type}_${i+1}`;
+                connector.innerHTML = getArrowCharacter('left', connector.dataset.type);
+                connector.style.left = '-12px';
+                connector.style.top = `${yPercent}%`;
+                connector.style.transform = 'translateY(-50%)';
+                connector.addEventListener('click', handleConnectorClick);
+                element.appendChild(connector);
+            }
+            
+            // Saídas (Right side)
+            for (let i = 0; i < num_saidas; i++) {
+                const yPercent = (i + 1) * 100 / (num_saidas + 1);
+                const type = isFlipped ? 'in' : 'out';
+                const connector = document.createElement('div');
+                connector.className = 'connector';
+                connector.dataset.componentId = id;
+                connector.dataset.connectorIndex = i + num_entradas; // Index starts after entradas
+                connector.dataset.type = `${type}_${i+1}`;
+                connector.innerHTML = getArrowCharacter('right', connector.dataset.type);
+                connector.style.right = '-12px';
+                connector.style.top = `${yPercent}%`;
+                connector.style.transform = 'translateY(-50%)';
+                connector.addEventListener('click', handleConnectorClick);
+                element.appendChild(connector);
+            }
+
+            updatePipesForComponent(id);
+        }
+
+        function updateComponentPropertiesPanel(data, id) {
+            propertiesContent.innerHTML = '';
+            const header = document.createElement('div');
+            header.className = 'mb-4 border-b pb-2';
+            header.innerHTML = `<div class="flex items-center space-x-3"><span class="text-4xl">${data.icon}</span><div><h4 class="text-lg font-semibold">${data.name}</h4><p class="text-xs text-gray-400">ID: ${id}</p></div></div>`;
+            propertiesContent.appendChild(header);
+            const form = document.createElement('div');
+            form.className = 'space-y-3';
+            for (const key in data.params) {
+                const value = data.params[key];
+                const labelText = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                const group = document.createElement('div');
+                const label = document.createElement('label');
+                label.className = 'text-sm font-medium text-gray-600 mb-1 block';
+                label.textContent = labelText;
+                
+                if (data.type === 'pump_var' && key === 'modo_controlo') {
+                    const select = document.createElement('select');
+                    select.className = 'w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
+                    ['Pressão', 'Temperatura'].forEach(opt => {
+                        const optionEl = document.createElement('option');
+                        optionEl.value = opt; optionEl.textContent = opt;
+                        if (opt === value) optionEl.selected = true;
+                        select.appendChild(optionEl);
+                    });
+                    select.addEventListener('change', (e) => { placedComponents[id].params[key] = e.target.value; });
+                    group.append(label, select);
+                } else if (data.type === 'heat_exchanger' && key === 'tipo') {
+                    const select = document.createElement('select');
+                    select.className = 'w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
+                    ['Placas', 'Tubular'].forEach(opt => {
+                        const optionEl = document.createElement('option');
+                        optionEl.value = opt; optionEl.textContent = opt;
+                        if (opt === value) optionEl.selected = true;
+                        select.appendChild(optionEl);
+                    });
+                    select.addEventListener('change', (e) => { placedComponents[id].params[key] = e.target.value; });
+                    group.append(label, select);
+                } else if (data.type === 'collector' && (key === 'num_entradas' || key === 'num_saidas')) {
+                    const portType = key === 'num_entradas' ? 'entradas' : 'saidas';
+                    const controlGroup = document.createElement('div');
+                    controlGroup.className = 'flex items-center justify-between';
+                    const minusBtn = document.createElement('button');
+                    minusBtn.textContent = '-';
+                    minusBtn.className = 'px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded-md font-bold';
+                    minusBtn.addEventListener('click', () => changeCollectorPorts(id, portType, -1));
+                    const display = document.createElement('span');
+                    display.textContent = value;
+                    display.className = 'font-semibold text-lg';
+                    const plusBtn = document.createElement('button');
+                    plusBtn.textContent = '+';
+                    plusBtn.className = 'px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded-md font-bold';
+                    plusBtn.addEventListener('click', () => changeCollectorPorts(id, portType, 1));
+                    controlGroup.append(minusBtn, display, plusBtn);
+                    group.append(label, controlGroup);
+                } else {
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.className = 'w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
+                    input.value = value;
+                    input.addEventListener('input', (e) => {
+                        const newValue = isNaN(parseFloat(e.target.value)) ? e.target.value : parseFloat(e.target.value);
+                        placedComponents[id].params[key] = newValue;
+                        if (isSimulating) { 
+                            if (placedComponents[id].type.startsWith('pump_') && key.includes('caudal')) {
+                                calculateAndApplySimulationData();
+                            }
+                            updateSimulationView();
+                        }
+                    });
+                    group.append(label, input);
+                }
+                form.appendChild(group);
+            }
+            propertiesContent.appendChild(form);
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.innerHTML = `<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>Apagar Componente`;
+            deleteBtn.className = 'w-full mt-6 flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500';
+            deleteBtn.addEventListener('click', () => deleteComponent(id));
+            propertiesContent.appendChild(deleteBtn);
+        }
+
+        function updatePipePropertiesPanel(id) {
+            propertiesContent.innerHTML = '';
+            const data = connections[id].params;
+            const header = document.createElement('div');
+            header.className = 'mb-4 border-b pb-2';
+            header.innerHTML = `<div class="flex items-center space-x-3"><svg class="w-10 h-10 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg><div><h4 class="text-lg font-semibold">Propriedades da Tubagem</h4><p class="text-xs text-gray-400">ID: ${id}</p></div></div>`;
+            propertiesContent.appendChild(header);
+            const form = document.createElement('div');
+            form.className = 'space-y-3';
+            for (const key in data) {
+                const value = data[key];
+                const labelText = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                const group = document.createElement('div');
+                const label = document.createElement('label');
+                label.className = 'text-sm font-medium text-gray-600 mb-1';
+                label.textContent = labelText;
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
+                input.value = value;
+                input.addEventListener('input', (e) => {
+                    const newValue = isNaN(parseFloat(e.target.value)) ? e.target.value : parseFloat(e.target.value);
+                    connections[id].params[key] = newValue;
+                     if (isSimulating) { updateSimulationView(); }
+                });
+                group.append(label, input);
+            }
+            propertiesContent.appendChild(form);
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.innerHTML = `<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>Apagar Tubagem`;
+            deleteBtn.className = 'w-full mt-6 flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500';
+            deleteBtn.addEventListener('click', () => deletePipe(id));
+            propertiesContent.appendChild(deleteBtn);
+        }
+
+        function deleteComponent(id) {
+            if (!placedComponents[id]) return;
+            const pipesToDelete = [];
+            for (const connId in connections) {
+                const conn = connections[connId];
+                if (conn.from.componentId === id || conn.to.componentId === id) pipesToDelete.push(connId);
+            }
+            pipesToDelete.forEach(connId => deletePipe(connId));
+            document.getElementById(id)?.remove();
+            delete placedComponents[id];
+            closePanel();
+        }
+
+        function deletePipe(id) {
+            if (connections[id]) {
+                connections[id].line.remove();
+                delete connections[id];
+                closePanel();
+            }
+        }
+        
+        function closePanel() {
+            if (selectedComponentId && document.getElementById(selectedComponentId)) {
+                document.getElementById(selectedComponentId).classList.remove('selected');
+            }
+            selectedComponentId = null;
+            if (selectedPipeId && connections[selectedPipeId]) {
+                const conn = connections[selectedPipeId];
+                conn.line.style.stroke = '';
+                conn.line.style.strokeWidth = '';
+            }
+            selectedPipeId = null;
+            removeVertexHandles();
+            propertiesPanel.classList.add('translate-x-full');
+            propertiesContent.innerHTML = '<p class="text-gray-500">Selecione um componente para ver as suas propriedades.</p>';
+        }
+
+        if(closePanelBtn) closePanelBtn.addEventListener('click', closePanel);
+
+        // --- Simulation Logic ---
+        function toggleSimulation() {
+            isSimulating = !isSimulating;
+            if (isSimulating) {
+                simulateBtn.textContent = 'Parar Simulação';
+                simulateBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                simulateBtn.classList.add('bg-red-600', 'hover:bg-red-700');
+                closePanel(); // Close properties panel to avoid overlap
+                calculateAndApplySimulationData();
+            } else {
+                simulateBtn.textContent = 'Simular';
+                simulateBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                simulateBtn.classList.remove('bg-red-600', 'hover:bg-red-700');
+                clearSimulationData();
+            }
+            updateSimulationView();
+        }
+
+        function clearSimulationData() {
+            simulationResults = {};
+        }
+
+        function calculateAndApplySimulationData() {
+            clearSimulationData();
+            const pumps = Object.entries(placedComponents).filter(([id, comp]) => comp.type.startsWith('pump_'));
+            const visited = new Set();
+
+            pumps.forEach(([pumpId, pumpComp]) => {
+                if (visited.has(pumpId)) return;
+
+                const flowRate = pumpComp.params.caudal_agua_m3h;
+                
+                // Find the output connector for the pump (usually index 1)
+                const pumpDef = components.find(c => c.id === pumpComp.type);
+                const outConnectorIndex = pumpDef.connectors.findIndex(c => c.type.includes('out'));
+
+                if (outConnectorIndex === -1) return; // No output found
+
+                // Start traversal from the pump's output
+                const queue = [{ compId: pumpId, connectorIndex: outConnectorIndex }];
+                const circuitVisited = new Set([pumpId]);
+                
+                // Set pump's own flow
+                simulationResults[pumpId] = { caudal_agua_m3h: flowRate };
+
+                while (queue.length > 0) {
+                    const { compId, connectorIndex } = queue.shift();
+                    
+                    // Find pipe connected to this specific output connector
+                    const outgoingPipe = Object.entries(connections).find(([connId, conn]) => 
+                        conn.from.componentId === compId && conn.from.connectorIndex == connectorIndex && !circuitVisited.has(connId)
+                    );
+
+                    if (outgoingPipe) {
+                        const [pipeId, pipe] = outgoingPipe;
+                        circuitVisited.add(pipeId);
+                        
+                        // Set pipe flow
+                        simulationResults[pipeId] = { caudal_m3h: flowRate };
+                        
+                        const nextCompId = pipe.to.componentId;
+                        if (!circuitVisited.has(nextCompId)) {
+                            circuitVisited.add(nextCompId);
+                            simulationResults[nextCompId] = { caudal_agua_m3h: flowRate };
+
+                            // Find all output connectors of the next component to continue the flow
+                            const nextCompDef = components.find(c => c.id === placedComponents[nextCompId].type);
+                            if (nextCompDef) {
+                                nextCompDef.connectors.forEach((conn, idx) => {
+                                    if (conn.type.includes('out')) {
+                                        queue.push({ compId: nextCompId, connectorIndex: idx });
+                                    }
+                                });
+                            }
+                        }
+                    }
+                }
+                // Add all elements from this circuit to the global visited set
+                circuitVisited.forEach(item => visited.add(item));
+            });
+        }
+
+
+        function updateSimulationView() {
+            // Clear previous labels
+            document.querySelectorAll('.sim-label').forEach(el => el.remove());
+
+            if (!isSimulating) return;
+
+            // Display labels for components
+            for (const id in placedComponents) {
+                const comp = placedComponents[id];
+                const elem = document.getElementById(id);
+                const label = document.createElement('div');
+                label.className = 'sim-label';
+                
+                let content = '';
+                // Customize content based on component type
+                const tempIn = comp.params.temperatura_entrada_c ?? comp.params.temp_ent_evap_c ?? comp.params.temp_ent_carga_c ?? comp.params.temperatura_c ?? 'N/A';
+                const tempOut = comp.params.temperatura_saida_c ?? comp.params.temp_sai_evap_c ?? comp.params.temp_sai_carga_c ?? 'N/A';
+                
+                const simFlow = simulationResults[id]?.caudal_agua_m3h;
+                const flow = simFlow !== undefined ? simFlow : (comp.params.caudal_agua_m3h ?? comp.params.caudal_evap_m3h ?? comp.params.caudal_carga_m3h ?? 'N/A');
+                
+                content += `Q: ${flow} m³/h<br>`;
+                if (tempOut !== 'N/A') {
+                    content += `T: ${tempIn}°C / ${tempOut}°C`;
+                } else {
+                     content += `T: ${tempIn}°C`;
+                }
+
+                label.innerHTML = content;
+                label.style.left = `${elem.offsetLeft}px`;
+                label.style.top = `${elem.offsetTop + elem.offsetHeight - 10}px`;
+                canvas.appendChild(label);
+            }
+
+            // Display labels for pipes
+            for (const id in connections) {
+                const conn = connections[id];
+                const label = document.createElement('div');
+                label.className = 'sim-label';
+                
+                const simFlow = simulationResults[id]?.caudal_m3h;
+                const flow = simFlow !== undefined ? simFlow : conn.params.caudal_m3h;
+                const temp = conn.params.temperatura_c;
+
+                label.innerHTML = `Q: ${flow} m³/h<br>T: ${temp}°C`;
+                
+                // Position label at the midpoint of the first segment
+                const p1 = conn.points[0];
+                const p2 = conn.points[1];
+                const midX = (p1.x + p2.x) / 2;
+                const midY = (p1.y + p2.y) / 2;
+
+                label.style.left = `${midX}px`;
+                label.style.top = `${midY}px`;
+                canvas.appendChild(label);
+            }
+        }
+
+        simulateBtn.addEventListener('click', toggleSimulation);
+
+        // --- Helper Math Functions ---
+        function pointToSegmentDistance(p, a, b) {
+            const l2 = (a.x - b.x)**2 + (a.y - b.y)**2;
+            if (l2 === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+            let t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / l2;
+            t = Math.max(0, Math.min(1, t));
+            const projection = { x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) };
+            return Math.hypot(p.x - projection.x, p.y - projection.y);
+        }
+
+    </script>
+</body>
+</html>
+
+
+

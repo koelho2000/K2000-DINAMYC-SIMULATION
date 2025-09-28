@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Simulador de Central Térmica (Estilo Modelica)</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
@@ -29,7 +30,7 @@
         .param-input {
             @apply w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm;
         }
-        #table-modal {
+        #table-modal, #validation-modal, #chart-modal {
             background-color: rgba(0, 0, 0, 0.5);
             transition: opacity 0.3s ease;
         }
@@ -69,6 +70,12 @@
         .speed-btn-inactive {
             @apply bg-gray-200 text-gray-700 hover:bg-gray-300;
         }
+        .tab-btn {
+            @apply px-4 py-2 text-sm font-medium text-gray-500 border-b-2 border-transparent hover:text-gray-700 hover:border-gray-300;
+        }
+        .tab-btn-active {
+            @apply text-blue-600 border-blue-600;
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 flex flex-col h-screen overflow-hidden">
@@ -87,22 +94,24 @@
                 <div id="totalEletricoDisplay" class="text-lg font-bold text-green-600">0.0 kWh</div>
             </div>
         </div>
-        <div class="flex items-center space-x-4 mt-2 sm:mt-0">
+        <div class="flex items-center space-x-2 mt-2 sm:mt-0">
              <div class="flex items-center space-x-2">
                 <label for="tempExterior" class="text-sm font-medium text-gray-700">Temp. Ext. (°C):</label>
                 <input type="number" id="tempExterior" value="10" class="w-20 p-1 border border-gray-300 rounded-md shadow-sm sm:text-sm">
             </div>
             <button id="showTableBtn" class="bg-gray-500 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-gray-600 transition duration-300">Tabela</button>
+            <button id="showChartBtn" class="bg-purple-500 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-purple-600 transition duration-300">Gráfico</button>
             <button id="simulateSteadyBtn" class="bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-blue-700 transition duration-300">Sim. Steady</button>
             <div class="flex items-center space-x-2 bg-gray-100 p-1 rounded-lg">
                  <button id="startDynamicBtn" class="bg-teal-500 text-white font-semibold px-4 py-1 rounded-lg shadow hover:bg-teal-600 transition duration-300">Sim. Dinâmica</button>
                  <button id="pauseDynamicBtn" class="hidden bg-orange-500 text-white font-semibold px-4 py-1 rounded-lg shadow hover:bg-orange-600 transition duration-300">Parar</button>
-                 <div id="dynamicTimeDisplay" class="text-sm font-mono text-gray-700 px-2">Hora: 0 H</div>
+                 <div id="dynamicTimeDisplay" class="text-sm font-mono text-gray-700 px-2 w-48 text-center">Hora: 0 H</div>
                  <div id="speed-selector" class="flex items-center space-x-1 border-l pl-2 ml-2">
-                    <button data-speed="5000" class="speed-btn speed-btn-inactive">0.2×</button>
                     <button data-speed="1000" class="speed-btn speed-btn-active">1×</button>
-                    <button data-speed="200" class="speed-btn speed-btn-inactive">5×</button>
                     <button data-speed="100" class="speed-btn speed-btn-inactive">10×</button>
+                    <button data-speed="10" class="speed-btn speed-btn-inactive">100×</button>
+                    <button data-speed="2" class="speed-btn speed-btn-inactive">500×</button>
+                    <button data-speed="1" class="speed-btn speed-btn-inactive">1000×</button>
                  </div>
             </div>
             <button id="clearBtn" class="bg-red-500 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-red-600 transition duration-300">Limpar</button>
@@ -130,7 +139,7 @@
         </main>
         
         <!-- Properties Panel -->
-        <aside id="properties-panel" class="w-0 bg-white p-0 overflow-hidden shadow-lg transition-all duration-300 z-10">
+        <aside id="properties-panel" class="w-0 bg-white p-0 overflow-y-auto shadow-lg transition-all duration-300 z-10">
             <!-- Content will be injected by JS -->
         </aside>
     </div>
@@ -140,9 +149,38 @@
         <div class="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col">
             <header class="p-4 border-b flex justify-between items-center">
                 <h2 class="text-xl font-bold text-gray-700">Tabela de Equipamentos e Dados</h2>
-                <button id="close-table-modal-btn" class="text-gray-400 hover:text-gray-600">&times;</button>
+                <button id="close-table-modal-btn" class="text-gray-400 hover:text-gray-600 text-2xl font-bold">&times;</button>
             </header>
             <main id="data-table-container" class="p-4 overflow-y-auto"></main>
+        </div>
+    </div>
+    
+    <!-- Chart Modal -->
+    <div id="chart-modal" class="hidden fixed inset-0 z-30 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-4xl h-[70vh] flex flex-col">
+            <header class="p-4 border-b flex justify-between items-center">
+                <h2 class="text-xl font-bold text-gray-700">Gráfico de Energia Acumulada</h2>
+                <button id="close-chart-modal-btn" class="text-gray-400 hover:text-gray-600 text-2xl font-bold">&times;</button>
+            </header>
+            <main class="p-4 flex-1 relative">
+                <canvas id="chart-canvas"></canvas>
+            </main>
+        </div>
+    </div>
+
+    <!-- Validation Modal -->
+    <div id="validation-modal" class="hidden fixed inset-0 z-30 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-lg">
+            <header class="p-4 border-b flex justify-between items-center bg-red-500 text-white">
+                <h2 class="text-xl font-bold">Erro de Validação do Circuito</h2>
+                <button id="close-validation-modal-btn" class="text-white hover:text-gray-200 text-2xl font-bold">&times;</button>
+            </header>
+            <main id="validation-message-container" class="p-6">
+                <p class="text-gray-700 mb-4">A simulação não pode continuar. Por favor, corrija os seguintes problemas:</p>
+                <ul id="validation-errors-list" class="list-disc list-inside space-y-2 text-red-700">
+                    <!-- Errors will be injected here -->
+                </ul>
+            </main>
         </div>
     </div>
 
@@ -160,16 +198,16 @@
             'Caldeira': { category: 'Produção', color: '#22c55e', params: { potencia: 100000, tempSaida: 80, rendimento: 0.9, potEletrica: 200 }, inputs: ['entrada'], outputs: ['saida'] },
             'Bomba de Calor': { category: 'Produção', color: '#16a34a', params: { potencia: 25000, COP: 4.0 }, inputs: ['entrada'], outputs: ['saida'] },
             'Chiller': { category: 'Produção', color: '#0ea5e9', params: { potencia: 50000, EER: 3.5 }, inputs: ['entrada'], outputs: ['saida'] },
-            'Consumidor Genérico': { category: 'Produção', color: '#f43f5e', params: { potencia: 10000, cargaVariavel: false, perfilDiario: '' }, inputs: ['entrada'], outputs: ['saida'] },
+            'Consumidor Genérico': { category: 'Produção', color: '#f43f5e', params: { potencia: 10000, cargaVariavel: false, perfilDiario: '', perfilAnual: '' }, inputs: ['entrada'], outputs: ['saida'] },
             'Bomba': { category: 'Impulsão', color: '#3b82f6', params: { caudal: 2.0, potEletrica: 500 }, inputs: ['entrada'], outputs: ['saida'] },
             'Tubo': { category: 'Distribuição', color: '#64748b', params: { comprimento: 10, perdaTermica: 0.5 /* W/m.K */ }, inputs: ['entrada'], outputs: ['saida'] },
             'Depósito de Inércia': { category: 'Distribuição', color: '#a855f7', params: { volume: 500 }, inputs: ['entrada'], outputs: ['saida'] },
             'Permutador de Placas': { category: 'Distribuição', color: '#84cc16', params: { potencia: 15000 }, inputs: ['entrada'], outputs: ['saida'] },
             'Coletor': { category: 'Distribuição', color: '#78716c', params: {}, inputs: ['in1', 'in2'], outputs: ['out1', 'out2'] },
             'Válvula de Regulação': { category: 'Distribuição', color: '#eab308', params: { abertura: 100 }, inputs: ['entrada'], outputs: ['saida'] },
-            'Radiador': { category: 'Consumo', color: '#ef4444', params: { potencia: 5000, cargaVariavel: false, perfilDiario: '' }, inputs: ['entrada'], outputs: ['saida'] },
-            'Unidade de Tratamento de Ar': { category: 'Consumo', color: '#dc2626', params: { potencia: 20000, cargaVariavel: false, perfilDiario: '' }, inputs: ['entrada'], outputs: ['saida'] },
-            'Carga Genérica': { category: 'Consumo', color: '#be123c', params: { potencia: 15000, cargaVariavel: false, perfilDiario: '' }, inputs: ['entrada'], outputs: ['saida'] },
+            'Radiador': { category: 'Consumo', color: '#ef4444', params: { potencia: 5000, cargaVariavel: false, perfilDiario: '', perfilAnual: '' }, inputs: ['entrada'], outputs: ['saida'] },
+            'Unidade de Tratamento de Ar': { category: 'Consumo', color: '#dc2626', params: { potencia: 20000, cargaVariavel: false, perfilDiario: '', perfilAnual: '' }, inputs: ['entrada'], outputs: ['saida'] },
+            'Carga Genérica': { category: 'Consumo', color: '#be123c', params: { potencia: 15000, cargaVariavel: false, perfilDiario: '', perfilAnual: '' }, inputs: ['entrada'], outputs: ['saida'] },
             'Acumulador': { category: 'Acumulação', color: '#f97316', params: { volume: 500 }, inputs: ['entrada'], outputs: ['saida'] }
         };
 
@@ -178,9 +216,14 @@
         let draggingComponent = null; let connectingFrom = null; let selectedComponent = null; let selectedConnection = null;
         let mouse = { x: 0, y: 0, down: false, dragMoved: false };
         let steadyResultsAvailable = false;
-        let dynamicSimState = { running: false, intervalId: null, hour: 0, speed: 1000, totalTermica: 0, totalEletrica: 0 };
+        let dynamicSimState = { 
+            running: false, intervalId: null, hour: 0, speed: 1000, 
+            totalTermica: 0, totalEletrica: 0,
+            monthlyThermal: Array(12).fill(0), monthlyElectric: Array(12).fill(0)
+        };
         let viewTransform = { scale: 1, offsetX: 0, offsetY: 0 };
         let panning = { active: false, startX: 0, startY: 0 };
+        let chartInstance = null;
 
         // --- SETUP DO CANVAS E DOM ---
         const canvas = document.getElementById('workspace'); const ctx = canvas.getContext('2d');
@@ -190,10 +233,17 @@
         const pauseDynamicBtn = document.getElementById('pauseDynamicBtn');
         const dynamicTimeDisplay = document.getElementById('dynamicTimeDisplay');
         const showTableBtn = document.getElementById('showTableBtn');
+        const showChartBtn = document.getElementById('showChartBtn');
         const clearBtn = document.getElementById('clearBtn');
         const messageBox = document.getElementById('message-box'); const messageText = document.getElementById('message-text');
         const tableModal = document.getElementById('table-modal');
         const closeTableModalBtn = document.getElementById('close-table-modal-btn');
+        const chartModal = document.getElementById('chart-modal');
+        const closeChartModalBtn = document.getElementById('close-chart-modal-btn');
+        const chartCanvas = document.getElementById('chart-canvas').getContext('2d');
+        const validationModal = document.getElementById('validation-modal');
+        const closeValidationModalBtn = document.getElementById('close-validation-modal-btn');
+        const validationErrorsList = document.getElementById('validation-errors-list');
         const propertiesPanel = document.getElementById('properties-panel');
         const speedSelector = document.getElementById('speed-selector');
         const totalTermicaDisplay = document.getElementById('totalTermicaDisplay');
@@ -205,6 +255,15 @@
                 x: (x - viewTransform.offsetX) / viewTransform.scale,
                 y: (y - viewTransform.offsetY) / viewTransform.scale,
             };
+        }
+        
+        function getDateFromHour(hour) {
+            if (hour === 0) return "Início";
+            const date = new Date(2024, 0, 1); // Start of a non-leap year
+            date.setHours(date.getHours() + hour - 1);
+            const month = date.toLocaleString('pt-PT', { month: 'short' });
+            const day = date.getDate();
+            return `${day} ${month}`;
         }
 
         function isPointOnBezier(point, p0, p1, p2, p3, threshold = 10) {
@@ -222,19 +281,17 @@
             ctx.strokeStyle = '#e2e8f0'; // cool-gray-200
             ctx.lineWidth = 1;
             const scaledGridSize = GRID_SIZE * viewTransform.scale;
-            if (scaledGridSize < 5) return; // Don't draw if grid is too small
+            if (scaledGridSize < 5) return;
 
             const startX = -viewTransform.offsetX % (GRID_SIZE * viewTransform.scale);
             const startY = -viewTransform.offsetY % (GRID_SIZE * viewTransform.scale);
             
             ctx.beginPath();
             for (let x = startX / viewTransform.scale; x < canvas.width / viewTransform.scale; x += GRID_SIZE) {
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, canvas.height / viewTransform.scale);
+                ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height / viewTransform.scale);
             }
             for (let y = startY / viewTransform.scale; y < canvas.height / viewTransform.scale; y += GRID_SIZE) {
-                ctx.moveTo(0, y);
-                ctx.lineTo(canvas.width / viewTransform.scale, y);
+                ctx.moveTo(0, y); ctx.lineTo(canvas.width / viewTransform.scale, y);
             }
             ctx.stroke();
         }
@@ -248,8 +305,14 @@
             canvas.style.width = `${rect.width}px`; canvas.style.height = `${rect.height}px`;
         }
 
-        function showMessage(msg) {
-            messageText.textContent = msg; messageBox.classList.remove('hidden');
+        function showMessage(msg, isError = false) {
+            messageText.textContent = msg;
+            messageBox.classList.remove('hidden', 'bg-yellow-100', 'border-yellow-400', 'text-yellow-700', 'bg-red-100', 'border-red-400', 'text-red-700');
+            if (isError) {
+                messageBox.classList.add('bg-red-100', 'border-red-400', 'text-red-700');
+            } else {
+                messageBox.classList.add('bg-yellow-100', 'border-yellow-400', 'text-yellow-700');
+            }
             setTimeout(() => { messageBox.classList.add('hidden'); }, 3000);
         }
 
@@ -258,9 +321,7 @@
             ctx.fillStyle = 'white';
             ctx.strokeStyle = template.color;
             if (comp === selectedComponent) {
-                ctx.lineWidth = 4;
-                ctx.shadowColor = template.color;
-                ctx.shadowBlur = 10;
+                ctx.lineWidth = 4; ctx.shadowColor = template.color; ctx.shadowBlur = 10;
             } else {
                 ctx.lineWidth = 2;
             }
@@ -325,14 +386,10 @@
             const caudalTxt = `${fromComp.results.caudal.toFixed(2)} kg/s`;
             const tempTxt = `${fromComp.results.tempSaida.toFixed(1)}°C`;
             
-            ctx.font = '11px Inter';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
+            ctx.font = '11px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             const textWidth = Math.max(ctx.measureText(caudalTxt).width, ctx.measureText(tempTxt).width) + 8;
-            
             ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
             ctx.fillRect(pos.x - textWidth / 2, pos.y - 14, textWidth, 28);
-            
             ctx.fillStyle = '#1e293b'; // slate-800
             ctx.fillText(caudalTxt, pos.x, pos.y - 6);
             ctx.fillText(tempTxt, pos.x, pos.y + 8);
@@ -343,11 +400,9 @@
             if (!fromComp || !toComp) return;
             const fromPos = getConnectorPos(fromComp, 'output', conn.from.connector), toPos = getConnectorPos(toComp, 'input', conn.to.connector);
             ctx.beginPath(); ctx.moveTo(fromPos.x, fromPos.y); ctx.bezierCurveTo(fromPos.x + 50, fromPos.y, toPos.x - 50, toPos.y, toPos.x, toPos.y);
-            
             const isSelected = conn === selectedConnection;
             ctx.strokeStyle = isSelected ? '#f59e0b' : '#64748b'; // amber-500 for selection
             ctx.lineWidth = isSelected ? 5 : 3;
-            
             ctx.stroke();
         }
 
@@ -356,12 +411,9 @@
             const rect = canvas.getBoundingClientRect();
             ctx.save();
             ctx.clearRect(0, 0, rect.width, rect.height);
-            
             ctx.translate(viewTransform.offsetX, viewTransform.offsetY);
             ctx.scale(viewTransform.scale, viewTransform.scale);
-            
             drawGrid();
-
             connections.forEach(drawConnection);
             if (connectingFrom) {
                 const fromPos = getConnectorPos(connectingFrom.component, 'output', connectingFrom.connector);
@@ -371,7 +423,6 @@
             }
             components.forEach(drawComponent);
             connections.forEach(drawConnectionData);
-
             ctx.restore();
         }
         
@@ -380,31 +431,59 @@
             selectedComponent = comp;
             propertiesPanel.innerHTML = '';
             propertiesPanel.classList.remove('w-0', 'p-0');
-            propertiesPanel.classList.add('w-72', 'p-4');
+            propertiesPanel.classList.add('w-96', 'p-4'); // Wider panel
             let content = `<h3 class="text-lg font-bold text-gray-700 mb-4 border-b pb-2">${comp.type}</h3><div class="space-y-4">`;
             for (const key in comp.params) {
-                if (key === 'cargaVariavel' || key === 'perfilDiario' || key === 'perfilArray') continue;
+                if (['cargaVariavel', 'perfilDiario', 'perfilAnual', 'perfilArray'].includes(key)) continue;
                 content += `<div><label for="param-${key}" class="block text-sm font-medium text-gray-700 capitalize">${key}</label><input type="number" id="param-${key}" value="${comp.params[key]}" class="param-input mt-1"></div>`;
             }
             content += '</div>';
 
             if (comp.params.hasOwnProperty('cargaVariavel')) {
+                const dailyProfile = comp.params.perfilDiario ? comp.params.perfilDiario.split(',').map(s => s.trim()) : Array(24).fill(0);
+                let dailyInputsHTML = '<div class="grid grid-cols-4 gap-2">';
+                for (let i = 0; i < 24; i++) {
+                    dailyInputsHTML += `<div class="flex items-center"><label for="h${i}" class="text-xs mr-1">${i}h:</label><input type="number" id="h${i}" value="${dailyProfile[i] || 0}" class="w-full p-1 border border-gray-300 rounded-md text-xs"></div>`;
+                }
+                dailyInputsHTML += '</div>';
+
                 content += `<div class="mt-4 pt-4 border-t">
                     <h4 class="text-md font-semibold text-gray-600 mb-2">Carga Variável</h4>
                     <div class="flex items-center mb-2">
                         <input type="checkbox" id="param-cargaVariavel" ${comp.params.cargaVariavel ? 'checked' : ''} class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                        <label for="param-cargaVariavel" class="ml-2 block text-sm text-gray-900">Ativar Perfil de Carga Diário</label>
+                        <label for="param-cargaVariavel" class="ml-2 block text-sm text-gray-900">Ativar Carga Variável</label>
                     </div>
-                    <div>
-                        <label for="param-perfilDiario" class="block text-sm font-medium text-gray-700">Perfil Diário (W)</label>
-                        <textarea id="param-perfilDiario" rows="3" class="param-input mt-1" placeholder="24 valores em Watts, separados por vírgula...">${comp.params.perfilDiario || ''}</textarea>
-                        <p class="text-xs text-gray-500 mt-1">Ex: 1000,1000,1000,... (24 valores)</p>
+
+                    <div class="border-b border-gray-200">
+                        <nav id="profile-tabs" class="-mb-px flex space-x-4" aria-label="Tabs">
+                            <button data-tab="diario" class="tab-btn tab-btn-active">Perfil Diário</button>
+                            <button data-tab="anual" class="tab-btn">Importar Anual</button>
+                        </nav>
+                    </div>
+                    
+                    <div id="tab-content-diario" class="py-4">${dailyInputsHTML}</div>
+                    <div id="tab-content-anual" class="hidden py-4">
+                        <label for="param-perfilAnual" class="block text-sm font-medium text-gray-700">Perfil Anual (8760h em W)</label>
+                        <textarea id="param-perfilAnual" rows="5" class="param-input mt-1" placeholder="8760 valores em Watts, separados por vírgula...">${comp.params.perfilAnual || ''}</textarea>
                     </div>
                 </div>`;
             }
 
             content += `<div class="mt-6 pt-4 border-t space-y-2"><button id="save-params-btn" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition">Guardar</button><button id="delete-comp-btn" class="w-full bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition">Apagar</button></div>`;
             propertiesPanel.innerHTML = content;
+            
+            const tabs = propertiesPanel.querySelectorAll('#profile-tabs button');
+            if (tabs.length > 0) {
+                tabs.forEach(tab => {
+                    tab.addEventListener('click', () => {
+                        tabs.forEach(t => t.classList.remove('tab-btn-active'));
+                        tab.classList.add('tab-btn-active');
+                        propertiesPanel.querySelector('#tab-content-diario').classList.toggle('hidden', tab.dataset.tab !== 'diario');
+                        propertiesPanel.querySelector('#tab-content-anual').classList.toggle('hidden', tab.dataset.tab !== 'anual');
+                    });
+                });
+            }
+
             document.getElementById('save-params-btn').addEventListener('click', () => saveComponentParams(comp));
             document.getElementById('delete-comp-btn').addEventListener('click', () => deleteComponent(comp.id));
             draw();
@@ -412,7 +491,7 @@
 
         function hidePropertiesPanel() {
             selectedComponent = null;
-            propertiesPanel.classList.remove('w-72', 'p-4');
+            propertiesPanel.classList.remove('w-96', 'p-4');
             propertiesPanel.classList.add('w-0', 'p-0');
             propertiesPanel.innerHTML = '';
             draw();
@@ -421,22 +500,42 @@
         function saveComponentParams(comp) {
             for (const key in comp.params) {
                 const input = document.getElementById(`param-${key}`);
-                if (key === 'cargaVariavel' && input) {
-                    comp.params.cargaVariavel = input.checked;
-                } else if (key === 'perfilDiario' && input) {
-                    comp.params.perfilDiario = input.value;
-                    try {
-                         const profileArray = input.value.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
-                         if (profileArray.length !== 24 && input.value.trim() !== '') {
-                            showMessage('Aviso: Perfil diário deve ter 24 valores numéricos.');
-                         }
-                         comp.params.perfilArray = profileArray;
-                    } catch (e) {
-                        showMessage('Erro ao processar o perfil de carga. Verifique o formato.');
+                if (['cargaVariavel', 'perfilDiario', 'perfilAnual', 'perfilArray'].includes(key)) continue;
+                if(input) comp.params[key] = parseFloat(input.value) || 0;
+            }
+
+            if (comp.params.hasOwnProperty('cargaVariavel')) {
+                comp.params.cargaVariavel = document.getElementById('param-cargaVariavel').checked;
+                
+                const dailyValues = [];
+                for(let i=0; i<24; i++) {
+                    dailyValues.push(document.getElementById(`h${i}`).value || '0');
+                }
+                comp.params.perfilDiario = dailyValues.join(',');
+                
+                const annualInput = document.getElementById('param-perfilAnual');
+                const annualValuesStr = annualInput.value.trim();
+                comp.params.perfilAnual = annualValuesStr; 
+                
+                if (annualValuesStr) {
+                    const profileArray = annualValuesStr.split(',').map(s => parseFloat(s.trim()));
+                    const validNumbers = profileArray.filter(n => !isNaN(n));
+                    if(validNumbers.length !== profileArray.length) {
+                        showMessage('Aviso: O perfil anual contém valores não numéricos.', true);
                         comp.params.perfilArray = [];
+                    } else if (validNumbers.length !== 8760) {
+                        showMessage(`Aviso: Perfil anual deve ter 8760 valores. Fornecidos: ${validNumbers.length}.`, true);
+                        comp.params.perfilArray = [];
+                    } else {
+                        comp.params.perfilArray = validNumbers; 
+                        showMessage('Perfil anual de 8760h importado com sucesso.');
                     }
-                } else if (input) {
-                    comp.params[key] = parseFloat(input.value) || 0;
+                } else {
+                     comp.params.perfilArray = [];
+                     const dailyNumeric = comp.params.perfilDiario.split(',').map(Number);
+                     for(let i=0; i < 365; i++) {
+                        comp.params.perfilArray.push(...dailyNumeric);
+                     }
                 }
             }
             showMessage(`${comp.type} atualizado.`);
@@ -457,7 +556,7 @@
             </tr></thead><tbody>`;
 
             components.forEach(comp => {
-                const params = Object.entries(comp.params).filter(([k]) => k !== 'perfilDiario' && k !== 'perfilArray').map(([k, v]) => `${k}: ${v}`).join('<br>');
+                const params = Object.entries(comp.params).filter(([k]) => !['perfilDiario', 'perfilAnual', 'perfilArray'].includes(k)).map(([k, v]) => `${k}: ${v}`).join('<br>');
                 const res = comp.results;
                 tableHTML += `<tr>
                     <td>${comp.id}</td>
@@ -468,7 +567,6 @@
                     <td>${res.potencia !== null ? (res.potencia / 1000).toFixed(1) : '--'}</td>
                 </tr>`;
             });
-
             tableHTML += '</tbody></table>';
             container.innerHTML = tableHTML;
             tableModal.classList.remove('hidden');
@@ -478,18 +576,54 @@
             tableModal.classList.add('hidden');
         }
 
-        // --- SIMULAÇÃO ---
+        // --- VALIDAÇÃO E SIMULAÇÃO ---
+        function validateCircuit() {
+            const errors = [];
+            const producers = components.filter(c => componentTemplates[c.type].category === 'Produção');
+            const pumps = components.filter(c => componentTemplates[c.type].category === 'Impulsão');
+            const consumers = components.filter(c => componentTemplates[c.type].category === 'Consumo');
+
+            if (producers.length === 0) errors.push('É necessário pelo menos um equipamento de "Produção".');
+            if (pumps.length === 0) errors.push('É necessário pelo menos um equipamento de "Impulsão" (Bomba).');
+            if (consumers.length === 0) errors.push('É necessário pelo menos um equipamento de "Consumo".');
+            
+            if (producers.length > 0) {
+                const startNode = producers[0];
+                let currentNode = startNode;
+                let pathFound = false;
+                for (let i = 0; i <= components.length; i++) { // Use <= to detect loops
+                    if (i > 0 && currentNode.id === startNode.id) {
+                        pathFound = true;
+                        break;
+                    }
+                    if (i === components.length) break; // Prevent infinite loop on broken circuits
+                    
+                    const connection = connections.find(c => c.from.id === currentNode.id);
+                    if (!connection) break;
+                    
+                    const nextNode = components.find(c => c.id === connection.to.id);
+                    if (!nextNode) break;
+                    
+                    currentNode = nextNode;
+                }
+                if (!pathFound) errors.push('O circuito não está fechado. O último equipamento deve ligar-se ao primeiro equipamento de produção.');
+            }
+            return errors;
+        }
+
+        function showValidationWarning(errors) {
+            validationErrorsList.innerHTML = errors.map(e => `<li>${e}</li>`).join('');
+            validationModal.classList.remove('hidden');
+        }
+
         function runSteadyStateCalculation() {
             steadyResultsAvailable = false;
             components.forEach(c => c.results = { caudal: null, tempEntrada: null, tempSaida: null, potencia: null });
             
             const tempExterior = parseFloat(document.getElementById('tempExterior').value) || 10;
-
-            const producer = components.find(c => ['Caldeira', 'Bomba de Calor', 'Chiller'].includes(c.type));
-            const pump = components.find(c => c.type === 'Bomba');
-            if (!producer) { if(!dynamicSimState.running) showMessage("Simulação falhou: É necessário um componente de Produção."); return; }
-            if (!pump) { if(!dynamicSimState.running) showMessage("Simulação falhou: É necessário uma Bomba para definir o caudal."); return; }
-
+            const producer = components.find(c => componentTemplates[c.type].category === 'Produção');
+            const pump = components.find(c => componentTemplates[c.type].category === 'Impulsão');
+            
             const simulationOrder = [], visited = new Set();
             let currentComp = producer;
             while (currentComp && !visited.has(currentComp.id)) {
@@ -500,14 +634,12 @@
             
             const lastComp = simulationOrder[simulationOrder.length - 1];
             const loopConnection = connections.find(c => c.from.id === lastComp?.id && c.to.id === producer.id);
-            
             const valvula = simulationOrder.find(c => c.type === 'Válvula de Regulação');
             const fatorAbertura = valvula ? Math.max(0, Math.min(1, valvula.params.abertura / 100)) : 1;
             const caudal = pump.params.caudal * fatorAbertura;
-            
             let tempRetorno = loopConnection ? 20 : producer.params.tempSaida; 
             
-            for(let i = 0; i < 5; i++) { // Mais iterações para estabilidade
+            for(let i = 0; i < 5; i++) {
                 let currentTemp = tempRetorno;
                 simulationOrder.forEach(comp => {
                     comp.results.caudal = caudal; comp.results.tempEntrada = currentTemp;
@@ -537,9 +669,9 @@
                         case 'Válvula de Regulação': comp.results.tempSaida = currentTemp; comp.results.potencia = 0; break;
                         case 'Radiador': case 'Unidade de Tratamento de Ar': case 'Carga Genérica': case 'Consumidor Genérico': case 'Permutador de Placas':
                             let potenciaConsumo = comp.params.potencia;
-                            if (dynamicSimState.running && comp.params.cargaVariavel && comp.params.perfilArray && comp.params.perfilArray.length === 24) {
-                                const horaDoDia = (dynamicSimState.hour -1) % 24;
-                                potenciaConsumo = comp.params.perfilArray[horaDoDia] || 0;
+                            if (dynamicSimState.running && comp.params.cargaVariavel && comp.params.perfilArray && comp.params.perfilArray.length === 8760) {
+                                const horaDoAno = (dynamicSimState.hour - 1);
+                                potenciaConsumo = comp.params.perfilArray[horaDoAno] || 0;
                             }
                             comp.results.tempSaida = currentTemp - (potenciaConsumo / (caudal * SPECIFIC_HEAT_WATER));
                             comp.results.potencia = -potenciaConsumo; 
@@ -562,6 +694,11 @@
         }
 
         function startDynamicSimulation() {
+            const validationErrors = validateCircuit();
+            if (validationErrors.length > 0) {
+                showValidationWarning(validationErrors);
+                return;
+            }
             if (dynamicSimState.running) return;
             dynamicSimState.running = true;
             
@@ -569,8 +706,7 @@
             pauseDynamicBtn.classList.remove('hidden');
             
             if (dynamicSimState.hour === 0) {
-                 dynamicSimState.totalTermica = 0;
-                 dynamicSimState.totalEletrica = 0;
+                 resetDynamicSimulation(false); // Reset counters but not UI
             }
 
             components.forEach(c => {
@@ -587,26 +723,30 @@
             dynamicSimState.running = false;
             clearInterval(dynamicSimState.intervalId);
             dynamicSimState.intervalId = null;
-            
             pauseDynamicBtn.classList.add('hidden');
             startDynamicBtn.classList.remove('hidden');
             startDynamicBtn.textContent = 'Continuar';
         }
 
-        function resetDynamicSimulation() {
+        function resetDynamicSimulation(clearUI = true) {
             if(dynamicSimState.intervalId) clearInterval(dynamicSimState.intervalId);
             dynamicSimState.running = false;
             dynamicSimState.intervalId = null;
             dynamicSimState.hour = 0;
             dynamicSimState.totalTermica = 0;
             dynamicSimState.totalEletrica = 0;
-            dynamicTimeDisplay.textContent = `Hora: 0 H`;
-            totalTermicaDisplay.textContent = `0.0 kWh`;
-            totalEletricoDisplay.textContent = `0.0 kWh`;
+            dynamicSimState.monthlyThermal = Array(12).fill(0);
+            dynamicSimState.monthlyElectric = Array(12).fill(0);
 
-            pauseDynamicBtn.classList.add('hidden');
-            startDynamicBtn.classList.remove('hidden');
-            startDynamicBtn.textContent = 'Sim. Dinâmica';
+            if(clearUI) {
+                dynamicTimeDisplay.textContent = `Hora: 0 H`;
+                totalTermicaDisplay.textContent = `0.0 kWh`;
+                totalEletricoDisplay.textContent = `0.0 kWh`;
+                pauseDynamicBtn.classList.add('hidden');
+                startDynamicBtn.classList.remove('hidden');
+                startDynamicBtn.textContent = 'Sim. Dinâmica';
+            }
+            if (chartInstance) updateChart();
         }
 
         function dynamicStep() {
@@ -616,7 +756,8 @@
                 showMessage("Simulação dinâmica de 1 ano concluída.");
                 return;
             }
-            dynamicTimeDisplay.textContent = `Hora: ${dynamicSimState.hour} H`;
+            const dateString = getDateFromHour(dynamicSimState.hour);
+            dynamicTimeDisplay.textContent = `Hora: ${dynamicSimState.hour} (${dateString})`;
             
             runSteadyStateCalculation();
 
@@ -626,45 +767,45 @@
             components.forEach(comp => {
                 const potTermica = Math.abs(comp.results.potencia || 0);
                 const tempExterior = parseFloat(document.getElementById('tempExterior').value) || 10;
-
-                // Acumulação de energia térmica
-                if (['Radiador', 'Unidade de Tratamento de Ar', 'Carga Genérica', 'Consumidor Genérico', 'Permutador de Placas'].includes(comp.type)) {
+                
+                if (componentTemplates[comp.type].category === 'Consumo' || (comp.type === 'Consumidor Genérico')) {
                     consumoTermicoHora += potTermica;
                 }
-
-                // Acumulação de consumo elétrico
+                
                 switch(comp.type) {
                     case 'Bomba de Calor':
                         const effectiveCOP = comp.params.COP - (7 - tempExterior) * 0.05;
-                        if (potTermica > 0 && effectiveCOP > 0) {
-                            consumoEletricoHora += potTermica / effectiveCOP;
-                        }
+                        if (potTermica > 0 && effectiveCOP > 0) consumoEletricoHora += potTermica / effectiveCOP;
                         break;
                     case 'Chiller':
                         const effectiveEER = comp.params.EER * (Math.max(0.1, 1 - (tempExterior - 35) * 0.03));
-                         if (potTermica > 0 && effectiveEER > 0) {
-                            consumoEletricoHora += potTermica / effectiveEER;
-                        }
+                         if (potTermica > 0 && effectiveEER > 0) consumoEletricoHora += potTermica / effectiveEER;
                         break;
-                    case 'Bomba':
-                    case 'Caldeira':
+                    case 'Bomba': case 'Caldeira':
                         consumoEletricoHora += comp.params.potEletrica || 0;
                         break;
                 }
             });
             
-            // Energia é Potência (W) * Tempo (h) = Wh
             dynamicSimState.totalTermica += consumoTermicoHora;
             dynamicSimState.totalEletrica += consumoEletricoHora;
+
+            const date = new Date(2024, 0, 1);
+            date.setHours(date.getHours() + dynamicSimState.hour - 1);
+            const monthIndex = date.getMonth();
+            dynamicSimState.monthlyThermal[monthIndex] += consumoTermicoHora;
+            dynamicSimState.monthlyElectric[monthIndex] += consumoEletricoHora;
 
             totalTermicaDisplay.textContent = `${(dynamicSimState.totalTermica / 1000).toFixed(1)} kWh`;
             totalEletricoDisplay.textContent = `${(dynamicSimState.totalEletrica / 1000).toFixed(1)} kWh`;
             
+            if (chartInstance && !chartModal.classList.contains('hidden')) updateChart();
+
             draw();
         }
         
         function clearWorkspace() {
-            resetDynamicSimulation();
+            resetDynamicSimulation(true);
             components = []; connections = []; nextId = 0; steadyResultsAvailable = false;
             hidePropertiesPanel(); draw(); 
         }
@@ -695,6 +836,52 @@
                 libraryContainer.appendChild(categoryDiv);
             });
         }
+        
+        // --- GRÁFICO ---
+        function showChartModal() {
+            chartModal.classList.remove('hidden');
+            renderChart();
+        }
+        function hideChartModal() {
+            chartModal.classList.add('hidden');
+        }
+        function updateChart() {
+            if (!chartInstance) return;
+            chartInstance.data.datasets[0].data = dynamicSimState.monthlyThermal.map(v => v / 1000);
+            chartInstance.data.datasets[1].data = dynamicSimState.monthlyElectric.map(v => v / 1000);
+            chartInstance.update('none'); // 'none' for smoother updates
+        }
+        function renderChart() {
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+            const monthLabels = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+            chartInstance = new Chart(chartCanvas, {
+                type: 'bar',
+                data: {
+                    labels: monthLabels,
+                    datasets: [
+                        {
+                            label: 'Energia Térmica Acumulada (kWh)',
+                            data: dynamicSimState.monthlyThermal.map(v => v / 1000),
+                            backgroundColor: 'rgba(59, 130, 246, 0.7)', // blue-500
+                        },
+                        {
+                            label: 'Consumo Elétrico Acumulado (kWh)',
+                            data: dynamicSimState.monthlyElectric.map(v => v / 1000),
+                            backgroundColor: 'rgba(22, 163, 74, 0.7)', // green-600
+                        }
+                    ]
+                },
+                options: {
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'Energia (kWh)' } }
+                    },
+                    responsive: true,
+                    maintainAspectRatio: false,
+                }
+            });
+        }
 
         // --- INICIALIZAÇÃO E EVENT LISTENERS ---
         window.addEventListener('resize', () => { setupCanvas(); draw(); });
@@ -702,8 +889,7 @@
             if (e.key === 'Delete' || e.key === 'Backspace') {
                 if (selectedConnection) {
                     connections = connections.filter(c => c !== selectedConnection);
-                    selectedConnection = null;
-                    draw();
+                    selectedConnection = null; draw();
                 } else if (selectedComponent) {
                     deleteComponent(selectedComponent.id);
                 }
@@ -711,8 +897,10 @@
         });
         
         simulateSteadyBtn.addEventListener('click', () => {
-            if (dynamicSimState.running) {
-                showMessage("Por favor, pare a simulação dinâmica primeiro.");
+            if (dynamicSimState.running) { showMessage("Por favor, pare a simulação dinâmica primeiro.", true); return; }
+            const validationErrors = validateCircuit();
+            if (validationErrors.length > 0) {
+                showValidationWarning(validationErrors);
                 return;
             }
             runSteadyStateCalculation();
@@ -723,20 +911,19 @@
         pauseDynamicBtn.addEventListener('click', pauseDynamicSimulation);
         showTableBtn.addEventListener('click', showDataTable);
         closeTableModalBtn.addEventListener('click', hideDataTable);
-        clearBtn.addEventListener('click', clearWorkspace);
+        showChartBtn.addEventListener('click', showChartModal);
+        closeChartModalBtn.addEventListener('click', hideChartModal);
+        closeValidationModalBtn.addEventListener('click', () => validationModal.classList.add('hidden'));
+        clearBtn.addEventListener('click', () => clearWorkspace(true));
         
         speedSelector.addEventListener('click', (e) => {
             if(e.target.tagName === 'BUTTON') {
                 const newSpeed = parseInt(e.target.dataset.speed, 10);
                 dynamicSimState.speed = newSpeed;
-                
                 speedSelector.querySelectorAll('button').forEach(btn => {
-                    btn.classList.remove('speed-btn-active');
-                    btn.classList.add('speed-btn-inactive');
+                    btn.classList.remove('speed-btn-active'); btn.classList.add('speed-btn-inactive');
                 });
-                e.target.classList.add('speed-btn-active');
-                e.target.classList.remove('speed-btn-inactive');
-
+                e.target.classList.add('speed-btn-active'); e.target.classList.remove('speed-btn-inactive');
                 if (dynamicSimState.running) {
                     clearInterval(dynamicSimState.intervalId);
                     dynamicSimState.intervalId = setInterval(dynamicStep, newSpeed);
@@ -747,20 +934,14 @@
         canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
             const rect = canvas.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
-
+            const mouseX = e.clientX - rect.left; const mouseY = e.clientY - rect.top;
             const worldPosBefore = screenToWorld(mouseX, mouseY);
-
             const zoomFactor = 1.1;
             const newScale = e.deltaY < 0 ? viewTransform.scale * zoomFactor : viewTransform.scale / zoomFactor;
             viewTransform.scale = Math.max(0.2, Math.min(3, newScale));
-            
             const worldPosAfter = screenToWorld(mouseX, mouseY);
-            
             viewTransform.offsetX += (worldPosAfter.x - worldPosBefore.x) * viewTransform.scale;
             viewTransform.offsetY += (worldPosAfter.y - worldPosBefore.y) * viewTransform.scale;
-
             draw();
         }, { passive: false });
 
@@ -770,13 +951,8 @@
             const type = e.dataTransfer.getData('text/plain');
             const rect = canvas.getBoundingClientRect();
             const worldPos = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
-            
-            let x = worldPos.x - COMPONENT_WIDTH / 2;
-            let y = worldPos.y - COMPONENT_HEIGHT / 2;
-            
-            x = Math.round(x / GRID_SIZE) * GRID_SIZE;
-            y = Math.round(y / GRID_SIZE) * GRID_SIZE;
-
+            let x = Math.round((worldPos.x - COMPONENT_WIDTH / 2) / GRID_SIZE) * GRID_SIZE;
+            let y = Math.round((worldPos.y - COMPONENT_HEIGHT / 2) / GRID_SIZE) * GRID_SIZE;
             const template = componentTemplates[type];
             if (template) {
                 components.push({
@@ -806,20 +982,15 @@
                 draggingComponent.offsetY = my - draggingComponent.y; 
                 return; 
             }
-
-            // Start panning
             panning.active = true;
             panning.startX = e.clientX;
             panning.startY = e.clientY;
-
         });
 
         canvas.addEventListener('mousemove', (e) => {
             const rect = canvas.getBoundingClientRect(); 
             mouse.x = e.clientX - rect.left; mouse.y = e.clientY - rect.top;
-            
             if (mouse.down && (draggingComponent || panning.active)) { mouse.dragMoved = true; }
-
             if (draggingComponent) {
                 const worldPos = screenToWorld(mouse.x, mouse.y);
                 let newX = worldPos.x - draggingComponent.offsetX;
@@ -830,12 +1001,9 @@
             } else if (connectingFrom) { 
                 draw();
             } else if (panning.active) {
-                const dx = e.clientX - panning.startX;
-                const dy = e.clientY - panning.startY;
-                viewTransform.offsetX += dx;
-                viewTransform.offsetY += dy;
-                panning.startX = e.clientX;
-                panning.startY = e.clientY;
+                const dx = e.clientX - panning.startX; const dy = e.clientY - panning.startY;
+                viewTransform.offsetX += dx; viewTransform.offsetY += dy;
+                panning.startX = e.clientX; panning.startY = e.clientY;
                 draw();
             }
         });
@@ -844,7 +1012,6 @@
             const worldPos = screenToWorld(e.clientX - e.target.getBoundingClientRect().left, e.clientY - e.target.getBoundingClientRect().top);
             const mx = worldPos.x; const my = worldPos.y;
 
-            // 1. Handle finishing a new connection
             if (connectingFrom) {
                 let connectionMade = false;
                 for (const comp of components) {
@@ -855,33 +1022,26 @@
                             if (!connections.find(c => c.to.id === comp.id && c.to.connector === name)) {
                                 connections.push({ from: { id: connectingFrom.component.id, connector: connectingFrom.connector }, to: { id: comp.id, connector: name } });
                                 connectionMade = true;
-                            } else { showMessage('Este conector de entrada já está a ser utilizado.'); }
+                            } else { showMessage('Este conector de entrada já está a ser utilizado.', true); }
                             break;
                         }
                     }
                     if (connectionMade) break;
                 }
             } 
-            // 2. Handle selection on simple click (no drag, not creating a connection)
             else if (!mouse.dragMoved) { 
                 let clickedOnSomething = false;
-                
                 const clickedComp = components.find(c => mx > c.x && mx < c.x + COMPONENT_WIDTH && my > c.y && my < c.y + COMPONENT_HEIGHT);
                 if (clickedComp) {
-                    selectedConnection = null;
-                    showPropertiesPanel(clickedComp);
-                    clickedOnSomething = true;
+                    selectedConnection = null; showPropertiesPanel(clickedComp); clickedOnSomething = true;
                 } else {
                     for (const conn of connections) {
                         const fromComp = components.find(c => c.id === conn.from.id);
                         const toComp = components.find(c => c.id === conn.to.id);
                         if (!fromComp || !toComp) continue;
-
                         const p0 = getConnectorPos(fromComp, 'output', conn.from.connector);
                         const p3 = getConnectorPos(toComp, 'input', conn.to.connector);
-                        const p1 = { x: p0.x + 50, y: p0.y };
-                        const p2 = { x: p3.x - 50, y: p3.y };
-
+                        const p1 = { x: p0.x + 50, y: p0.y }; const p2 = { x: p3.x - 50, y: p3.y };
                         if (isPointOnBezier({x: mx, y: my}, p0, p1, p2, p3)) {
                             selectedConnection = conn;
                             if(selectedComponent) hidePropertiesPanel();
@@ -890,19 +1050,12 @@
                         }
                     }
                 }
-                
                 if (!clickedOnSomething) {
                     if(selectedComponent) hidePropertiesPanel();
                     selectedConnection = null;
                 }
             }
-            
-            // 3. Reset all temporary states
-            draggingComponent = null; 
-            connectingFrom = null; 
-            mouse.down = false; 
-            mouse.dragMoved = false;
-            panning.active = false;
+            draggingComponent = null; connectingFrom = null; mouse.down = false; mouse.dragMoved = false; panning.active = false;
             draw();
         });
 

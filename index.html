@@ -1,1522 +1,924 @@
 <!DOCTYPE html>
-<html lang="pt">
+<html lang="pt-PT">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simulador de Central Térmica</title>
+    <title>Simulador de Central Térmica (Estilo Modelica)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
         }
-        #canvas-wrapper {
-            /* No overflow needed for a fixed canvas */
+        .component-library-item {
+            transition: all 0.2s ease-in-out;
         }
-        #canvas {
-            background-image:
-                linear-gradient(rgba(0, 0, 0, 0.1) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 0, 0, 0.1) 1px, transparent 1px);
-            background-size: 20px 20px;
-            position: relative;
-            width: 100%;
-            height: 100%;
-        }
-        .component-icon {
-            cursor: grab;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        .component-icon:active {
-            cursor: grabbing;
-            transform: scale(1.1);
-            z-index: 1000;
-        }
-        .canvas-item {
-            position: absolute;
-            width: 80px; /* Item size */
-            height: 80px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: grab;
-            border: 2px solid transparent;
-            transition: border-color 0.2s, background-color 0.2s, transform 0.2s ease, box-shadow 0.1s linear, height 0.2s ease;
-            user-select: none; /* Prevent text selection while dragging */
-        }
-        .canvas-item .inner-content {
-             transition: transform 0.2s ease;
-             display: flex;
-             flex-direction: column;
-             align-items: center;
-             justify-content: center;
-        }
-        .canvas-item.selected {
-            border-color: #3b82f6; /* blue-500 */
-            background-color: rgba(59, 130, 246, 0.1);
-            border-radius: 0.5rem;
-        }
-        .canvas-item .controls {
-            display: none;
-            position: absolute;
-            top: -12px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: white;
-            border-radius: 1rem;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            padding: 2px;
-            z-index: 20;
-        }
-        .canvas-item.selected .controls {
-            display: flex;
-        }
-        .control-btn {
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 4px;
-            border-radius: 50%;
-            transition: background-color 0.2s;
-        }
-        .control-btn:hover {
-            background-color: #f3f4f6;
-        }
-        .canvas-item.dragging {
-            cursor: grabbing;
-            z-index: 1001;
+        .component-library-item:hover {
             transform: scale(1.05);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            background-color: #e0f2fe; /* light blue hover */
         }
-        #properties-panel {
-            transition: transform 0.3s ease-in-out;
+        canvas {
+            background-color: #f8fafc; /* cool gray 50 */
+            border-radius: 0.5rem;
+            border: 1px solid #e2e8f0; /* cool gray 200 */
+            cursor: grab;
         }
-        /* Connectors and Pipes */
-        .connector {
-            position: absolute;
-            width: 24px;
-            height: 24px;
-            cursor: crosshair;
-            z-index: 10;
-            pointer-events: auto; /* Allow clicks on connectors */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            line-height: 1;
-            transition: transform 0.2s;
+        canvas:active {
+            cursor: grabbing;
         }
-        .connector:hover {
-            transform: scale(1.3) !important;
+        .param-input {
+            @apply w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm;
         }
-        .connector[data-type*="in"] { color: #3b82f6; } /* blue-500 for IN */
-        .connector[data-type*="out"] { color: #ef4444; } /* red-500 for OUT */
-        
-        /* Overrides for Condenser */
-        .connector[data-type*="in_cond"] { color: #8b5cf6; } /* violet-500 */
-        .connector[data-type*="out_cond"] { color: #16a34a; } /* green-600 */
-
-        /* Overrides for Heat Exchanger Secondary */
-        .connector[data-type="in_s"] { color: #f59e0b; } /* amber-500 */
-        .connector[data-type="out_s"] { color: #f97316; } /* orange-500 */
-
-        .connector-pos-top { top: -12px; left: 50%; transform: translateX(-50%); }
-        .connector-pos-bottom { bottom: -12px; left: 50%; transform: translateX(-50%); }
-        .connector-pos-left { left: -12px; top: 50%; transform: translateY(-50%); }
-        .connector-pos-right { right: -12px; top: 50%; transform: translateY(-50%); }
-        .connector-pos-left-top { left: -12px; top: 25%; transform: translateY(-50%); }
-        .connector-pos-left-bottom { left: -12px; top: 75%; transform: translateY(-50%); }
-        .connector-pos-right-top { right: -12px; top: 25%; transform: translateY(-50%); }
-        .connector-pos-right-bottom { right: -12px; top: 75%; transform: translateY(-50%); }
-
-        #pipe-svg {
-            position: absolute;
-            top: 0;
-            left: 0;
+        #table-modal {
+            background-color: rgba(0, 0, 0, 0.5);
+            transition: opacity 0.3s ease;
+        }
+        #data-table-container table {
             width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 1;
+            text-align: left;
+            font-size: 0.875rem; /* text-sm */
+            color: #6b7280; /* text-gray-500 */
+            border-collapse: collapse;
         }
-        #pipe-svg polyline {
-            fill: none;
-            stroke-width: 3px;
-            stroke: #4b5563; /* gray-600 */
-            pointer-events: auto;
-            cursor: pointer;
-            transition: stroke-width 0.2s, stroke 0.2s;
+        #data-table-container th, #data-table-container td {
+            padding: 0.75rem; /* p-3 */
+            border: 1px solid #9ca3af; /* border-gray-400 */
         }
-        #pipe-svg polyline:hover {
-            stroke-width: 5px;
+        #data-table-container th {
+            font-size: 0.75rem; /* text-xs */
+            font-weight: 600; /* font-semibold */
+            color: white;
+            text-transform: uppercase;
+            background-color: #1f2937; /* bg-gray-800 */
         }
-        .vertex-handle {
-            cursor: move;
-            fill: white;
-            stroke: #3b82f6;
-            stroke-width: 2px;
-            pointer-events: auto;
+        #data-table-container td {
+            color: #374151; /* text-gray-700 */
         }
-        .legend-violet { color: #8b5cf6; }
-        .legend-green { color: #16a34a; }
-        .legend-amber { color: #f59e0b; }
-        .legend-orange { color: #f97316; }
-
-
-        .sim-label {
-            position: absolute;
-            background-color: rgba(255, 255, 255, 0.9);
-            border: 1px solid #e5e7eb;
-            border-radius: 0.375rem;
-            padding: 4px 8px;
-            font-size: 10px;
-            pointer-events: none;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            white-space: nowrap;
-            z-index: 5;
+        #data-table-container tbody tr:nth-child(even) {
+            background-color: #f9fafb; /* bg-gray-50 */
         }
-        .input-auto {
-            background-color: #f3f4f6;
-            color: #6b7280;
+        #data-table-container tbody tr:hover {
+            background-color: #dbeafe; /* bg-blue-100 */
         }
-        .component-id-label {
-            position: absolute;
-            top: 2px;
-            left: 4px;
-            font-size: 9px;
-            color: #9ca3af; /* gray-400 */
-            font-weight: 500;
+        .speed-btn {
+             @apply px-2 py-1 text-xs font-medium rounded-md transition;
+        }
+        .speed-btn-active {
+            @apply bg-blue-600 text-white;
+        }
+        .speed-btn-inactive {
+            @apply bg-gray-200 text-gray-700 hover:bg-gray-300;
         }
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800 flex h-screen overflow-hidden">
+<body class="bg-gray-100 text-gray-800 flex flex-col h-screen overflow-hidden">
 
-    <!-- Sidebar with Equipment -->
-    <aside class="w-64 bg-white p-4 shadow-lg flex flex-col overflow-y-auto">
-        <div id="component-list" class="space-y-4">
-            <!-- Categories and components will be injected here by JavaScript -->
-        </div>
-        <div class="mt-auto pt-4 border-t">
-            <h3 class="text-lg font-bold mb-2 text-gray-700">Legenda</h3>
-            <div class="space-y-2 text-sm">
-                <div class="flex items-center">
-                    <div class="w-4 h-4 text-blue-500 flex items-center justify-center text-xl">▶</div>
-                    <span>Entrada Primário</span>
-                </div>
-                <div class="flex items-center">
-                    <div class="w-4 h-4 text-red-500 flex items-center justify-center text-xl">▶</div>
-                    <span>Saída Primário</span>
-                </div>
-                <div class="flex items-center">
-                    <div class="w-4 h-4 legend-violet flex items-center justify-center text-xl">▶</div>
-                    <span>Entrada Condensador</span>
-                </div>
-                <div class="flex items-center">
-                    <div class="w-4 h-4 legend-green flex items-center justify-center text-xl">▶</div>
-                    <span>Saída Condensador</span>
-                </div>
-                 <div class="flex items-center">
-                    <div class="w-4 h-4 legend-amber flex items-center justify-center text-xl">▶</div>
-                    <span>Entrada Secundário</span>
-                </div>
-                <div class="flex items-center">
-                    <div class="w-4 h-4 legend-orange flex items-center justify-center text-xl">▶</div>
-                    <span>Saída Secundário</span>
-                </div>
+    <!-- Header -->
+    <header class="bg-white shadow-md p-4 flex justify-between items-center z-20 flex-wrap">
+        <h1 class="text-2xl font-bold text-gray-700 mr-6">Simulador de Central Térmica</h1>
+        <div class="flex items-center space-x-2 bg-gray-100 p-2 rounded-lg">
+            <div class="text-center">
+                <div class="text-xs font-semibold text-gray-500">ENERGIA TÉRMICA</div>
+                <div id="totalTermicaDisplay" class="text-lg font-bold text-blue-600">0.0 kWh</div>
+            </div>
+            <div class="border-l h-8 mx-3"></div>
+            <div class="text-center">
+                <div class="text-xs font-semibold text-gray-500">CONSUMO ELÉTRICO</div>
+                <div id="totalEletricoDisplay" class="text-lg font-bold text-green-600">0.0 kWh</div>
             </div>
         </div>
-    </aside>
-
-    <!-- Main Canvas Area -->
-    <main class="flex-1 flex flex-col overflow-hidden">
-        <header class="bg-white p-4 shadow-md z-10 flex justify-between items-center">
-            <div>
-                <h1 class="text-2xl font-bold text-gray-800">Simulador de Consumos Energéticos</h1>
-                <p class="text-sm text-gray-500">Arraste os equipamentos. Dê um duplo clique numa tubagem para adicionar um ponto de ajuste.</p>
+        <div class="flex items-center space-x-4 mt-2 sm:mt-0">
+             <div class="flex items-center space-x-2">
+                <label for="tempExterior" class="text-sm font-medium text-gray-700">Temp. Ext. (°C):</label>
+                <input type="number" id="tempExterior" value="10" class="w-20 p-1 border border-gray-300 rounded-md shadow-sm sm:text-sm">
             </div>
-            <button id="simulate-btn" class="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
-                Simular - Steady State
-            </button>
-        </header>
-        <div id="canvas-wrapper" class="flex-1 relative">
-            <div id="canvas" class="grid-bg relative">
-                 <svg id="pipe-svg">
-                    <defs>
-                        <marker id="arrowhead" viewBox="0 0 10 10" refX="8" refY="5"
-                            markerUnits="strokeWidth" markerWidth="8" markerHeight="6"
-                            orient="auto">
-                          <path d="M 0 0 L 10 5 L 0 10 z" fill="#4b5563" />
-                        </marker>
-                    </defs>
-                    <g id="pipe-group"></g>
-                    <g id="handle-group"></g>
-                 </svg>
-                <!-- Dropped components will appear here -->
+            <button id="showTableBtn" class="bg-gray-500 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-gray-600 transition duration-300">Tabela</button>
+            <button id="simulateSteadyBtn" class="bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-blue-700 transition duration-300">Sim. Steady</button>
+            <div class="flex items-center space-x-2 bg-gray-100 p-1 rounded-lg">
+                 <button id="startDynamicBtn" class="bg-teal-500 text-white font-semibold px-4 py-1 rounded-lg shadow hover:bg-teal-600 transition duration-300">Sim. Dinâmica</button>
+                 <button id="pauseDynamicBtn" class="hidden bg-orange-500 text-white font-semibold px-4 py-1 rounded-lg shadow hover:bg-orange-600 transition duration-300">Parar</button>
+                 <div id="dynamicTimeDisplay" class="text-sm font-mono text-gray-700 px-2">Hora: 0 H</div>
+                 <div id="speed-selector" class="flex items-center space-x-1 border-l pl-2 ml-2">
+                    <button data-speed="5000" class="speed-btn speed-btn-inactive">0.2×</button>
+                    <button data-speed="1000" class="speed-btn speed-btn-active">1×</button>
+                    <button data-speed="200" class="speed-btn speed-btn-inactive">5×</button>
+                    <button data-speed="100" class="speed-btn speed-btn-inactive">10×</button>
+                 </div>
             </div>
+            <button id="clearBtn" class="bg-red-500 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-red-600 transition duration-300">Limpar</button>
         </div>
-    </main>
+    </header>
 
-    <!-- Properties Panel -->
-    <aside id="properties-panel" class="w-80 bg-white p-4 shadow-lg transform translate-x-full fixed top-0 right-0 h-full z-20 overflow-y-auto">
-        <div class="flex justify-between items-center mb-4">
-            <h3 class="text-xl font-bold text-gray-700">Propriedades</h3>
-            <button id="close-panel-btn" class="p-1 rounded-full hover:bg-gray-200">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-            </button>
-        </div>
-        <div id="properties-content">
-            <p class="text-gray-500">Selecione um componente para ver as suas propriedades.</p>
-        </div>
-    </aside>
+    <!-- Main Content -->
+    <div class="flex flex-1 overflow-hidden">
+        <!-- Component Library -->
+        <aside id="component-library" class="w-64 bg-white p-4 overflow-y-auto shadow-lg transition-all duration-300">
+            <h2 class="text-lg font-semibold mb-4 text-gray-600 border-b pb-2">Biblioteca de Equipamentos</h2>
+            <!-- Component categories will be injected here by JS -->
+        </aside>
 
-    <script>
-        const components = [
-            // Produção
-            { id: 'boiler_condensing', name: 'Caldeira Cond.', icon: '🔥', params: { eficiencia: 95, temperatura_saida_c: 60, diferencial_temperatura_dt: 10, potencia_kw: 'Auto', caudal_agua_m3h: 'Auto', temperatura_entrada_c: 'Auto' }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Produção' },
-            { id: 'boiler_conventional', name: 'Caldeira Conv.', icon: '🔥', params: { eficiencia: 85, temperatura_saida_c: 80, diferencial_temperatura_dt: 10, potencia_kw: 'Auto', caudal_agua_m3h: 'Auto', temperatura_entrada_c: 'Auto' }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Produção' },
-            { id: 'hp_air', name: 'Bomba Calor Ar', icon: '💨', params: { cop: 3.5, temperatura_saida_c: 45, diferencial_temperatura_dt: 5, capacidade_kw: 'Auto', caudal_agua_m3h: 'Auto', temperatura_entrada_c: 'Auto' }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Produção' },
-            { 
-                id: 'hp_water', 
-                name: 'Bomba Calor Água', 
-                icon: '💧', 
-                params: { 
-                    cop: 4.5,
-                    temp_sai_carga_c: 45,
-                    dt_carga_c: 5,
-                    capacidade_util_kw: 'Auto',
-                    capacidade_rejeicao_kw: 'Auto',
-                    caudal_carga_m3h: 'Auto',
-                    temp_ent_carga_c: 'Auto',
-                    caudal_cond_m3h: 12.9,
-                    temp_ent_cond_c: 25,
-                    temp_sai_cond_c: 30,
-                    dt_cond_c: 5
-                }, 
-                connectors: [
-                    { type: 'in_cond', pos: 'left-top' }, 
-                    { type: 'out_cond', pos: 'left-bottom' }, 
-                    { type: 'in_evap', pos: 'right-bottom' }, 
-                    { type: 'out_evap', pos: 'right-top' }
-                ], 
-                category: 'Produção' 
-            },
-            { id: 'chiller_air', name: 'Chiller Ar', icon: '❄️', params: { eer: 3.0, temperatura_saida_c: 7, diferencial_temperatura_dt: 5, capacidade_kw: 'Auto', caudal_agua_m3h: 'Auto', temperatura_entrada_c: 'Auto' }, connectors: [{ type: 'in', pos: 'right' }, { type: 'out', pos: 'left' }], category: 'Produção' },
-            { 
-                id: 'chiller_water', 
-                name: 'Chiller Água', 
-                icon: '❄️', 
-                params: { 
-                    eer: 5.0,
-                    temp_sai_evap_c: 7,
-                    dt_evap_c: 5,
-                    capacidade_evap_kw: 'Auto',
-                    capacidade_cond_kw: 'Auto',
-                    caudal_evap_m3h: 'Auto',
-                    temp_ent_evap_c: 'Auto',
-                    caudal_cond_m3h: 51.6,
-                    temp_ent_cond_c: 30,
-                    temp_sai_cond_c: 35,
-                    dt_cond_c: 5
-                }, 
-                connectors: [
-                    { type: 'out_evap', pos: 'left-top' }, 
-                    { type: 'in_evap', pos: 'left-bottom' }, 
-                    { type: 'in_cond', pos: 'right-top' }, 
-                    { type: 'out_cond', pos: 'right-bottom' }
-                ], 
-                category: 'Produção' 
-            },
-            { id: 'emitter_load', name: 'Carga Emissora', icon: '☀️', params: { temperatura_saida_c: 80, diferencial_temperatura_dt: 10, potencia_kw: 'Auto', caudal_agua_m3h: 'Auto', temperatura_entrada_c: 'Auto' }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Produção' },
-
-            // Consumo
-            { id: 'generic_load', name: 'Carga Dissipadora', icon: '🏠', params: { potencia_kw: 'Auto', diferencial_temperatura_dt: 10, temperatura_entrada_c: 'Auto', caudal_agua_m3h: 'Auto', temperatura_saida_c: 'Auto' }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Consumo' },
-            { id: 'ahu_load', name: 'UTA', icon: '🏢', params: { potencia_kw: 'Auto', diferencial_temperatura_dt: 5, temperatura_entrada_c: 'Auto', caudal_agua_m3h: 'Auto', temperatura_saida_c: 'Auto' }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Consumo' },
-            { id: 'fancoil', name: 'Fancoil', icon: '🌀', params: { potencia_kw: 'Auto', diferencial_temperatura_dt: 5, temperatura_entrada_c: 'Auto', caudal_agua_m3h: 'Auto', temperatura_saida_c: 'Auto' }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Consumo' },
-            { id: 'radiant_floor', name: 'Pav. Radiante', icon: '♨️', params: { area_m2: 100, potencia_w_m2: 50, diferencial_temperatura_dt: 5, temperatura_entrada_c: 'Auto', caudal_agua_m3h: 'Auto', temperatura_saida_c: 'Auto' }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Consumo' },
-            { id: 'dhw', name: 'AQS', icon: '🚿', params: { potencia_kw: 'Auto', diferencial_temperatura_dt: 45, temperatura_entrada_c: 'Auto', caudal_agua_m3h: 'Auto', temperatura_saida_c: 'Auto' }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Consumo' },
-            { id: 'pool', name: 'Piscina', icon: '🏊', params: { potencia_kw: 'Auto', volume_m3: 50, temperatura_c: 28, caudal_agua_m3h: 'Auto' }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Consumo' },
-            
-            // Dissipadores
-            { id: 'cooling_tower_open', name: 'Torre Aberta', icon: '🗼', params: { capacidade_rejeicao_kw: 300, potencia_vent_kw: 10, caudal_agua_m3h: 51.6, temperatura_c: 30 }, connectors: [{ type: 'in', pos: 'bottom' }, { type: 'out', pos: 'top' }], category: 'Dissipadores' },
-            { id: 'cooling_tower_closed', name: 'Torre Fechada', icon: '🗼', params: { capacidade_rejeicao_kw: 280, potencia_vent_kw: 12, caudal_agua_m3h: 48.1, temperatura_c: 30 }, connectors: [{ type: 'in', pos: 'bottom' }, { type: 'out', pos: 'top' }], category: 'Dissipadores' },
-            { id: 'drycooler_dry', name: 'Drycooler Seco', icon: '🌬️', params: { capacidade_rejeicao_kw: 150, potencia_vent_kw: 8, caudal_agua_m3h: 25.8, temperatura_c: 40 }, connectors: [{ type: 'in', pos: 'bottom' }, { type: 'out', pos: 'top' }], category: 'Dissipadores' },
-            { id: 'drycooler_adiabatic', name: 'Drycooler Adiab.', icon: '💦', params: { capacidade_rejeicao_kw: 180, potencia_vent_kw: 9, caudal_agua_m3h: 30.9, temperatura_c: 40 }, connectors: [{ type: 'in', pos: 'bottom' }, { type: 'out', pos: 'top' }], category: 'Dissipadores' },
-
-            // Distribuição
-            { id: 'buffer_tank', name: 'Depósito Inércia', icon: '🔋', params: { volume_l: 1000, caudal_agua_m3h: 'Auto', temperatura_c: 'Auto' }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Distribuição' },
-            { id: 'valve_3_way', name: 'Válvula 3 Vias', icon: '밸', params: { dn: 50, kvs: 40, caudal_agua_m3h: 'Auto', temperatura_c: 'Auto' }, connectors: [{ type: 'in', pos: 'bottom' }, { type: 'out', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Distribuição' },
-            { id: 'valve_2_way', name: 'Válvula 2 Vias', icon: '밸', params: { dn: 50, kvs: 32, caudal_agua_m3h: 'Auto', temperatura_c: 'Auto' }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Distribuição' },
-            { 
-                id: 'heat_exchanger', 
-                name: 'Permutador', 
-                icon: '↔️', 
-                params: { 
-                    tipo: 'Placas', 
-                    area_m2: 5, 
-                    u_value: 1500, 
-                    caudal_primario_m3h: 'Auto', 
-                    temp_ent_primario_c: 'Auto',
-                    temp_sai_primario_c: 'Auto',
-                    dt_primario_c: 'Auto',
-                    caudal_secundario_m3h: 'Auto',
-                    temp_ent_secundario_c: 'Auto',
-                    temp_sai_secundario_c: 'Auto',
-                    dt_secundario_c: 'Auto'
-                }, 
-                connectors: [
-                    { type: 'in_p', pos: 'left-top' }, 
-                    { type: 'out_p', pos: 'left-bottom' }, 
-                    { type: 'in_s', pos: 'right-top' }, 
-                    { type: 'out_s', pos: 'right-bottom' }
-                ], 
-                category: 'Distribuição' 
-            },
-            { id: 'flow_valve', name: 'Válvula Regul.', icon: '🎛️', params: { dn: 50, caudal_max_m3h: 20, temperatura_c: 'Auto' }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Distribuição' },
-            { id: 'collector', name: 'Coletor', icon: '☲', params: { num_entradas: 3, num_saidas: 3, caudal_agua_m3h: 'Auto', temperatura_c: 'Auto' }, connectors: [], category: 'Distribuição'},
-
-            // Impulsão
-            { id: 'pump_const', name: 'Bomba Vel. Const.', icon: '🔄', params: { altura_mca: 15, potencia_kw: 2.2, caudal_agua_m3h: 10, temperatura_c: 'Auto' }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Impulsão' },
-            { id: 'pump_var', name: 'Bomba Vel. Var.', icon: '📈', params: { altura_mca: 15, potencia_kw: 1.8, caudal_agua_m3h: 10, modo_controlo: 'Pressão', temperatura_c: 'Auto' }, connectors: [{ type: 'in', pos: 'left' }, { type: 'out', pos: 'right' }], category: 'Impulsão' },
-        ];
+        <!-- Workspace -->
+        <main class="flex-1 p-4 bg-gray-50 flex flex-col">
+            <div id="canvas-container" class="relative flex-1 w-full h-full border-dashed border-2 border-gray-300 rounded-lg">
+                <canvas id="workspace"></canvas>
+                <div id="message-box" class="hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded-lg shadow-lg z-20" role="alert">
+                    <strong class="font-bold">Aviso:</strong>
+                    <span class="block sm:inline" id="message-text"></span>
+                </div>
+            </div>
+             <p class="text-xs text-gray-500 text-center mt-2">Dica: Clique numa ligação ou equipamento e pressione a tecla 'Delete' para apagar.</p>
+        </main>
         
-        const canvas = document.getElementById('canvas');
-        const pipeSvg = document.getElementById('pipe-svg');
-        const pipeGroup = document.getElementById('pipe-group');
-        const handleGroup = document.getElementById('handle-group');
-        const componentList = document.getElementById('component-list');
+        <!-- Properties Panel -->
+        <aside id="properties-panel" class="w-0 bg-white p-0 overflow-hidden shadow-lg transition-all duration-300 z-10">
+            <!-- Content will be injected by JS -->
+        </aside>
+    </div>
+
+    <!-- Data Table Modal -->
+    <div id="table-modal" class="hidden fixed inset-0 z-30 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col">
+            <header class="p-4 border-b flex justify-between items-center">
+                <h2 class="text-xl font-bold text-gray-700">Tabela de Equipamentos e Dados</h2>
+                <button id="close-table-modal-btn" class="text-gray-400 hover:text-gray-600">&times;</button>
+            </header>
+            <main id="data-table-container" class="p-4 overflow-y-auto"></main>
+        </div>
+    </div>
+
+
+    <script type="module">
+        // --- CONFIGURAÇÃO E CONSTANTES ---
+        const COMPONENT_WIDTH = 150;
+        const COMPONENT_HEIGHT = 80;
+        const CONNECTOR_RADIUS = 8;
+        const SPECIFIC_HEAT_WATER = 4186; // J/kg°C
+        const GRID_SIZE = 20;
+
+        // --- DEFINIÇÃO DOS COMPONENTES ---
+        const componentTemplates = {
+            'Caldeira': { category: 'Produção', color: '#22c55e', params: { potencia: 100000, tempSaida: 80, rendimento: 0.9, potEletrica: 200 }, inputs: ['entrada'], outputs: ['saida'] },
+            'Bomba de Calor': { category: 'Produção', color: '#16a34a', params: { potencia: 25000, COP: 4.0 }, inputs: ['entrada'], outputs: ['saida'] },
+            'Chiller': { category: 'Produção', color: '#0ea5e9', params: { potencia: 50000, EER: 3.5 }, inputs: ['entrada'], outputs: ['saida'] },
+            'Consumidor Genérico': { category: 'Produção', color: '#f43f5e', params: { potencia: 10000, cargaVariavel: false, perfilDiario: '' }, inputs: ['entrada'], outputs: ['saida'] },
+            'Bomba': { category: 'Impulsão', color: '#3b82f6', params: { caudal: 2.0, potEletrica: 500 }, inputs: ['entrada'], outputs: ['saida'] },
+            'Tubo': { category: 'Distribuição', color: '#64748b', params: { comprimento: 10, perdaTermica: 0.5 /* W/m.K */ }, inputs: ['entrada'], outputs: ['saida'] },
+            'Depósito de Inércia': { category: 'Distribuição', color: '#a855f7', params: { volume: 500 }, inputs: ['entrada'], outputs: ['saida'] },
+            'Permutador de Placas': { category: 'Distribuição', color: '#84cc16', params: { potencia: 15000 }, inputs: ['entrada'], outputs: ['saida'] },
+            'Coletor': { category: 'Distribuição', color: '#78716c', params: {}, inputs: ['in1', 'in2'], outputs: ['out1', 'out2'] },
+            'Válvula de Regulação': { category: 'Distribuição', color: '#eab308', params: { abertura: 100 }, inputs: ['entrada'], outputs: ['saida'] },
+            'Radiador': { category: 'Consumo', color: '#ef4444', params: { potencia: 5000, cargaVariavel: false, perfilDiario: '' }, inputs: ['entrada'], outputs: ['saida'] },
+            'Unidade de Tratamento de Ar': { category: 'Consumo', color: '#dc2626', params: { potencia: 20000, cargaVariavel: false, perfilDiario: '' }, inputs: ['entrada'], outputs: ['saida'] },
+            'Carga Genérica': { category: 'Consumo', color: '#be123c', params: { potencia: 15000, cargaVariavel: false, perfilDiario: '' }, inputs: ['entrada'], outputs: ['saida'] },
+            'Acumulador': { category: 'Acumulação', color: '#f97316', params: { volume: 500 }, inputs: ['entrada'], outputs: ['saida'] }
+        };
+
+        // --- ESTADO DA APLICAÇÃO ---
+        let components = []; let connections = []; let nextId = 0;
+        let draggingComponent = null; let connectingFrom = null; let selectedComponent = null; let selectedConnection = null;
+        let mouse = { x: 0, y: 0, down: false, dragMoved: false };
+        let steadyResultsAvailable = false;
+        let dynamicSimState = { running: false, intervalId: null, hour: 0, speed: 1000, totalTermica: 0, totalEletrica: 0 };
+        let viewTransform = { scale: 1, offsetX: 0, offsetY: 0 };
+        let panning = { active: false, startX: 0, startY: 0 };
+
+        // --- SETUP DO CANVAS E DOM ---
+        const canvas = document.getElementById('workspace'); const ctx = canvas.getContext('2d');
+        const libraryContainer = document.getElementById('component-library');
+        const simulateSteadyBtn = document.getElementById('simulateSteadyBtn');
+        const startDynamicBtn = document.getElementById('startDynamicBtn');
+        const pauseDynamicBtn = document.getElementById('pauseDynamicBtn');
+        const dynamicTimeDisplay = document.getElementById('dynamicTimeDisplay');
+        const showTableBtn = document.getElementById('showTableBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const messageBox = document.getElementById('message-box'); const messageText = document.getElementById('message-text');
+        const tableModal = document.getElementById('table-modal');
+        const closeTableModalBtn = document.getElementById('close-table-modal-btn');
         const propertiesPanel = document.getElementById('properties-panel');
-        const propertiesContent = document.getElementById('properties-content');
-        const closePanelBtn = document.getElementById('close-panel-btn');
-        const simulateBtn = document.getElementById('simulate-btn');
+        const speedSelector = document.getElementById('speed-selector');
+        const totalTermicaDisplay = document.getElementById('totalTermicaDisplay');
+        const totalEletricoDisplay = document.getElementById('totalEletricoDisplay');
+        
+        // --- HELPERS (TRANSFORMAÇÃO E GRELHA) ---
+        function screenToWorld(x, y) {
+            return {
+                x: (x - viewTransform.offsetX) / viewTransform.scale,
+                y: (y - viewTransform.offsetY) / viewTransform.scale,
+            };
+        }
 
-        const GRID_SNAP_SIZE = 100;
-        const PIPE_GRID_SNAP = 20;
-        const COMPONENT_SIZE = 80;
+        function isPointOnBezier(point, p0, p1, p2, p3, threshold = 10) {
+            for (let t = 0; t <= 1; t += 0.02) {
+                const x = Math.pow(1 - t, 3) * p0.x + 3 * Math.pow(1 - t, 2) * t * p1.x + 3 * (1 - t) * t * t * p2.x + t * t * t * p3.x;
+                const y = Math.pow(1 - t, 3) * p0.y + 3 * Math.pow(1 - t, 2) * t * p1.y + 3 * (1 - t) * t * t * p2.y + t * t * t * p3.y;
+                if (Math.hypot(point.x - x, point.y - y) < threshold / viewTransform.scale) {
+                    return true;
+                }
+            }
+            return false;
+        }
 
-        let placedComponents = {};
-        let connections = {};
-        let selectedComponentId = null;
-        let selectedPipeId = null;
-        let idCounter = 0;
-        let draggedElement = null;
-        let offsetX, offsetY;
+        function drawGrid() {
+            ctx.strokeStyle = '#e2e8f0'; // cool-gray-200
+            ctx.lineWidth = 1;
+            const scaledGridSize = GRID_SIZE * viewTransform.scale;
+            if (scaledGridSize < 5) return; // Don't draw if grid is too small
 
-        // --- State Variables ---
-        let isConnecting = false;
-        let startConnector = null;
-        let tempPipe = null;
-        let draggedVertex = null;
-        let isSimulating = false;
-        let simulationResults = {};
+            const startX = -viewTransform.offsetX % (GRID_SIZE * viewTransform.scale);
+            const startY = -viewTransform.offsetY % (GRID_SIZE * viewTransform.scale);
+            
+            ctx.beginPath();
+            for (let x = startX / viewTransform.scale; x < canvas.width / viewTransform.scale; x += GRID_SIZE) {
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height / viewTransform.scale);
+            }
+            for (let y = startY / viewTransform.scale; y < canvas.height / viewTransform.scale; y += GRID_SIZE) {
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width / viewTransform.scale, y);
+            }
+            ctx.stroke();
+        }
 
-        // --- Component Creation ---
-        function initializeComponentList() {
-            componentList.innerHTML = '';
-            const categoryOrder = ['Produção', 'Consumo', 'Distribuição', 'Dissipadores', 'Impulsão'];
+        // --- LÓGICA DE DESENHO (RENDERIZAÇÃO) ---
+        function setupCanvas() {
+            const container = document.getElementById('canvas-container'); const dpr = window.devicePixelRatio || 1;
+            const rect = container.getBoundingClientRect();
+            canvas.width = rect.width * dpr; canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+            canvas.style.width = `${rect.width}px`; canvas.style.height = `${rect.height}px`;
+        }
 
-            categoryOrder.forEach(categoryName => {
-                const componentsInCategory = components.filter(c => c.category === categoryName);
-                if (componentsInCategory.length === 0) return;
+        function showMessage(msg) {
+            messageText.textContent = msg; messageBox.classList.remove('hidden');
+            setTimeout(() => { messageBox.classList.add('hidden'); }, 3000);
+        }
 
-                const categoryTitle = document.createElement('h3');
-                categoryTitle.className = 'text-lg font-bold text-gray-700 border-b pb-1 mb-2';
-                categoryTitle.textContent = categoryName;
-                componentList.appendChild(categoryTitle);
+        function drawComponent(comp) {
+            const template = componentTemplates[comp.type];
+            ctx.fillStyle = 'white';
+            ctx.strokeStyle = template.color;
+            if (comp === selectedComponent) {
+                ctx.lineWidth = 4;
+                ctx.shadowColor = template.color;
+                ctx.shadowBlur = 10;
+            } else {
+                ctx.lineWidth = 2;
+            }
+            ctx.beginPath(); ctx.roundRect(comp.x, comp.y, COMPONENT_WIDTH, COMPONENT_HEIGHT, [8]); ctx.fill(); ctx.stroke();
+            ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.lineWidth = 1;
+            ctx.fillStyle = template.color; ctx.beginPath(); ctx.roundRect(comp.x, comp.y, COMPONENT_WIDTH, 24, [8, 8, 0, 0]); ctx.fill();
+            ctx.fillStyle = 'white'; ctx.font = '600 14px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(comp.type, comp.x + COMPONENT_WIDTH / 2, comp.y + 12);
+            ctx.fillStyle = '#334155'; ctx.font = '12px Inter';
+            const caudal = comp.results.caudal !== null ? `${comp.results.caudal.toFixed(2)} kg/s` : '--';
+            const temp = comp.results.tempSaida !== null ? `${comp.results.tempSaida.toFixed(1)}°C` : '--';
+            const pot = comp.results.potencia !== null ? `${(comp.results.potencia / 1000).toFixed(1)} kW` : '--';
+            ctx.fillText(caudal, comp.x + COMPONENT_WIDTH / 2, comp.y + 40);
+            ctx.fillText(temp, comp.x + COMPONENT_WIDTH / 2, comp.y + 55);
+            ctx.fillText(pot, comp.x + COMPONENT_WIDTH / 2, comp.y + 70);
+            drawConnectors(comp);
+        }
 
-                const gridContainer = document.createElement('div');
-                gridContainer.className = 'grid grid-cols-2 gap-4';
-                
-                componentsInCategory.forEach(comp => {
-                    const div = document.createElement('div');
-                    div.className = 'component-icon flex flex-col items-center p-2 bg-gray-50 border rounded-lg hover:shadow-md hover:bg-blue-50';
-                    div.draggable = true;
-                    div.dataset.componentId = comp.id;
-                    div.innerHTML = `<div class="text-3xl">${comp.icon}</div><span class="text-xs text-center text-gray-600 mt-1">${comp.name}</span>`;
-                    div.addEventListener('dragstart', (e) => e.dataTransfer.setData('text/plain', comp.id));
-                    gridContainer.appendChild(div);
-                });
+        function getConnectorPos(comp, type, name) {
+            const template = componentTemplates[comp.type];
+            const connectors = type === 'input' ? template.inputs : template.outputs;
+            const index = connectors.indexOf(name);
+            if (index === -1) return { x: comp.x, y: comp.y };
+            const total = connectors.length;
+            const y = comp.y + 24 + (COMPONENT_HEIGHT - 24) / (total + 1) * (index + 1);
+            const isInputOnLeft = !comp.flipped;
+            if (type === 'input') { return { x: isInputOnLeft ? comp.x : comp.x + COMPONENT_WIDTH, y }; } 
+            else { return { x: isInputOnLeft ? comp.x + COMPONENT_WIDTH : comp.x, y }; }
+        }
 
-                componentList.appendChild(gridContainer);
+        function drawConnectors(comp) {
+            const template = componentTemplates[comp.type];
+            template.inputs.forEach(name => {
+                const pos = getConnectorPos(comp, 'input', name);
+                ctx.beginPath(); ctx.arc(pos.x, pos.y, CONNECTOR_RADIUS, 0, 2 * Math.PI); ctx.fillStyle = '#3b82f6'; ctx.fill();
+            });
+            template.outputs.forEach(name => {
+                const pos = getConnectorPos(comp, 'output', name);
+                ctx.beginPath(); ctx.arc(pos.x, pos.y, CONNECTOR_RADIUS, 0, 2 * Math.PI); ctx.fillStyle = '#ef4444'; ctx.fill();
             });
         }
-        initializeComponentList();
+
+        function getBezierMidPoint(conn) {
+             const fromComp = components.find(c => c.id === conn.from.id), toComp = components.find(c => c.id === conn.to.id);
+            if (!fromComp || !toComp) return null;
+            const p0 = getConnectorPos(fromComp, 'output', conn.from.connector), p3 = getConnectorPos(toComp, 'input', conn.to.connector);
+            const p1 = { x: p0.x + 50, y: p0.y }, p2 = { x: p3.x - 50, y: p3.y };
+            const t = 0.5;
+            const x = Math.pow(1 - t, 3) * p0.x + 3 * Math.pow(1 - t, 2) * t * p1.x + 3 * (1 - t) * t * t * p2.x + t * t * t * p3.x;
+            const y = Math.pow(1 - t, 3) * p0.y + 3 * Math.pow(1 - t, 2) * t * p1.y + 3 * (1 - t) * t * t * p2.y + t * t * t * p3.y;
+            return {x, y};
+        }
+
+        function drawConnectionData(conn) {
+            if (!steadyResultsAvailable) return;
+            const fromComp = components.find(c => c.id === conn.from.id);
+            if (!fromComp || fromComp.results.caudal === null) return;
+
+            const pos = getBezierMidPoint(conn);
+            if (!pos) return;
+            
+            const caudalTxt = `${fromComp.results.caudal.toFixed(2)} kg/s`;
+            const tempTxt = `${fromComp.results.tempSaida.toFixed(1)}°C`;
+            
+            ctx.font = '11px Inter';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const textWidth = Math.max(ctx.measureText(caudalTxt).width, ctx.measureText(tempTxt).width) + 8;
+            
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.fillRect(pos.x - textWidth / 2, pos.y - 14, textWidth, 28);
+            
+            ctx.fillStyle = '#1e293b'; // slate-800
+            ctx.fillText(caudalTxt, pos.x, pos.y - 6);
+            ctx.fillText(tempTxt, pos.x, pos.y + 8);
+        }
+        
+        function drawConnection(conn) {
+            const fromComp = components.find(c => c.id === conn.from.id), toComp = components.find(c => c.id === conn.to.id);
+            if (!fromComp || !toComp) return;
+            const fromPos = getConnectorPos(fromComp, 'output', conn.from.connector), toPos = getConnectorPos(toComp, 'input', conn.to.connector);
+            ctx.beginPath(); ctx.moveTo(fromPos.x, fromPos.y); ctx.bezierCurveTo(fromPos.x + 50, fromPos.y, toPos.x - 50, toPos.y, toPos.x, toPos.y);
+            
+            const isSelected = conn === selectedConnection;
+            ctx.strokeStyle = isSelected ? '#f59e0b' : '#64748b'; // amber-500 for selection
+            ctx.lineWidth = isSelected ? 5 : 3;
+            
+            ctx.stroke();
+        }
+
+        function draw() {
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            ctx.save();
+            ctx.clearRect(0, 0, rect.width, rect.height);
+            
+            ctx.translate(viewTransform.offsetX, viewTransform.offsetY);
+            ctx.scale(viewTransform.scale, viewTransform.scale);
+            
+            drawGrid();
+
+            connections.forEach(drawConnection);
+            if (connectingFrom) {
+                const fromPos = getConnectorPos(connectingFrom.component, 'output', connectingFrom.connector);
+                const worldMouse = screenToWorld(mouse.x, mouse.y);
+                ctx.beginPath(); ctx.moveTo(fromPos.x, fromPos.y); ctx.lineTo(worldMouse.x, worldMouse.y); ctx.strokeStyle = '#f59e0b';
+                ctx.lineWidth = 3; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
+            }
+            components.forEach(drawComponent);
+            connections.forEach(drawConnectionData);
+
+            ctx.restore();
+        }
+        
+        // --- PROPRIEDADES E DADOS ---
+        function showPropertiesPanel(comp) {
+            selectedComponent = comp;
+            propertiesPanel.innerHTML = '';
+            propertiesPanel.classList.remove('w-0', 'p-0');
+            propertiesPanel.classList.add('w-72', 'p-4');
+            let content = `<h3 class="text-lg font-bold text-gray-700 mb-4 border-b pb-2">${comp.type}</h3><div class="space-y-4">`;
+            for (const key in comp.params) {
+                if (key === 'cargaVariavel' || key === 'perfilDiario' || key === 'perfilArray') continue;
+                content += `<div><label for="param-${key}" class="block text-sm font-medium text-gray-700 capitalize">${key}</label><input type="number" id="param-${key}" value="${comp.params[key]}" class="param-input mt-1"></div>`;
+            }
+            content += '</div>';
+
+            if (comp.params.hasOwnProperty('cargaVariavel')) {
+                content += `<div class="mt-4 pt-4 border-t">
+                    <h4 class="text-md font-semibold text-gray-600 mb-2">Carga Variável</h4>
+                    <div class="flex items-center mb-2">
+                        <input type="checkbox" id="param-cargaVariavel" ${comp.params.cargaVariavel ? 'checked' : ''} class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                        <label for="param-cargaVariavel" class="ml-2 block text-sm text-gray-900">Ativar Perfil de Carga Diário</label>
+                    </div>
+                    <div>
+                        <label for="param-perfilDiario" class="block text-sm font-medium text-gray-700">Perfil Diário (W)</label>
+                        <textarea id="param-perfilDiario" rows="3" class="param-input mt-1" placeholder="24 valores em Watts, separados por vírgula...">${comp.params.perfilDiario || ''}</textarea>
+                        <p class="text-xs text-gray-500 mt-1">Ex: 1000,1000,1000,... (24 valores)</p>
+                    </div>
+                </div>`;
+            }
+
+            content += `<div class="mt-6 pt-4 border-t space-y-2"><button id="save-params-btn" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition">Guardar</button><button id="delete-comp-btn" class="w-full bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition">Apagar</button></div>`;
+            propertiesPanel.innerHTML = content;
+            document.getElementById('save-params-btn').addEventListener('click', () => saveComponentParams(comp));
+            document.getElementById('delete-comp-btn').addEventListener('click', () => deleteComponent(comp.id));
+            draw();
+        }
+
+        function hidePropertiesPanel() {
+            selectedComponent = null;
+            propertiesPanel.classList.remove('w-72', 'p-4');
+            propertiesPanel.classList.add('w-0', 'p-0');
+            propertiesPanel.innerHTML = '';
+            draw();
+        }
+
+        function saveComponentParams(comp) {
+            for (const key in comp.params) {
+                const input = document.getElementById(`param-${key}`);
+                if (key === 'cargaVariavel' && input) {
+                    comp.params.cargaVariavel = input.checked;
+                } else if (key === 'perfilDiario' && input) {
+                    comp.params.perfilDiario = input.value;
+                    try {
+                         const profileArray = input.value.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+                         if (profileArray.length !== 24 && input.value.trim() !== '') {
+                            showMessage('Aviso: Perfil diário deve ter 24 valores numéricos.');
+                         }
+                         comp.params.perfilArray = profileArray;
+                    } catch (e) {
+                        showMessage('Erro ao processar o perfil de carga. Verifique o formato.');
+                        comp.params.perfilArray = [];
+                    }
+                } else if (input) {
+                    comp.params[key] = parseFloat(input.value) || 0;
+                }
+            }
+            showMessage(`${comp.type} atualizado.`);
+            hidePropertiesPanel();
+        }
+
+        function deleteComponent(compId) {
+            components = components.filter(c => c.id !== compId);
+            connections = connections.filter(c => c.from.id !== compId && c.to.id !== compId);
+            hidePropertiesPanel();
+            draw();
+        }
+
+        function showDataTable() {
+            const container = document.getElementById('data-table-container');
+            let tableHTML = `<table><thead><tr>
+                <th>ID</th><th>Tipo</th><th>Parâmetros</th><th>Caudal (kg/s)</th><th>Temp. Saída (°C)</th><th>Potência (kW)</th>
+            </tr></thead><tbody>`;
+
+            components.forEach(comp => {
+                const params = Object.entries(comp.params).filter(([k]) => k !== 'perfilDiario' && k !== 'perfilArray').map(([k, v]) => `${k}: ${v}`).join('<br>');
+                const res = comp.results;
+                tableHTML += `<tr>
+                    <td>${comp.id}</td>
+                    <td class="font-bold">${comp.type}</td>
+                    <td>${params}</td>
+                    <td>${res.caudal !== null ? res.caudal.toFixed(2) : '--'}</td>
+                    <td>${res.tempSaida !== null ? res.tempSaida.toFixed(1) : '--'}</td>
+                    <td>${res.potencia !== null ? (res.potencia / 1000).toFixed(1) : '--'}</td>
+                </tr>`;
+            });
+
+            tableHTML += '</tbody></table>';
+            container.innerHTML = tableHTML;
+            tableModal.classList.remove('hidden');
+        }
+
+        function hideDataTable() {
+            tableModal.classList.add('hidden');
+        }
+
+        // --- SIMULAÇÃO ---
+        function runSteadyStateCalculation() {
+            steadyResultsAvailable = false;
+            components.forEach(c => c.results = { caudal: null, tempEntrada: null, tempSaida: null, potencia: null });
+            
+            const tempExterior = parseFloat(document.getElementById('tempExterior').value) || 10;
+
+            const producer = components.find(c => ['Caldeira', 'Bomba de Calor', 'Chiller'].includes(c.type));
+            const pump = components.find(c => c.type === 'Bomba');
+            if (!producer) { if(!dynamicSimState.running) showMessage("Simulação falhou: É necessário um componente de Produção."); return; }
+            if (!pump) { if(!dynamicSimState.running) showMessage("Simulação falhou: É necessário uma Bomba para definir o caudal."); return; }
+
+            const simulationOrder = [], visited = new Set();
+            let currentComp = producer;
+            while (currentComp && !visited.has(currentComp.id)) {
+                simulationOrder.push(currentComp); visited.add(currentComp.id);
+                const connection = connections.find(c => c.from.id === currentComp.id);
+                currentComp = connection ? components.find(c => c.id === connection.to.id) : null;
+            }
+            
+            const lastComp = simulationOrder[simulationOrder.length - 1];
+            const loopConnection = connections.find(c => c.from.id === lastComp?.id && c.to.id === producer.id);
+            
+            const valvula = simulationOrder.find(c => c.type === 'Válvula de Regulação');
+            const fatorAbertura = valvula ? Math.max(0, Math.min(1, valvula.params.abertura / 100)) : 1;
+            const caudal = pump.params.caudal * fatorAbertura;
+            
+            let tempRetorno = loopConnection ? 20 : producer.params.tempSaida; 
+            
+            for(let i = 0; i < 5; i++) { // Mais iterações para estabilidade
+                let currentTemp = tempRetorno;
+                simulationOrder.forEach(comp => {
+                    comp.results.caudal = caudal; comp.results.tempEntrada = currentTemp;
+                    if (caudal === 0) { comp.results.tempSaida = currentTemp; comp.results.potencia = 0; return; }
+                    
+                    switch (comp.type) {
+                        case 'Caldeira': comp.results.tempSaida = comp.params.tempSaida; break;
+                        case 'Bomba de Calor':
+                            const effectiveCOP = comp.params.COP - (7 - tempExterior) * 0.05;
+                            const potHP = comp.params.potencia * (effectiveCOP > 1 ? effectiveCOP : 1);
+                            comp.results.tempSaida = currentTemp + (potHP / (caudal * SPECIFIC_HEAT_WATER));
+                            comp.results.potencia = potHP;
+                            break;
+                        case 'Chiller':
+                            const efficiencyFactor = Math.max(0.1, 1 - (tempExterior - 35) * 0.03);
+                            const effectiveCoolingPower = comp.params.potencia * efficiencyFactor;
+                            comp.results.tempSaida = currentTemp - (effectiveCoolingPower / (caudal * SPECIFIC_HEAT_WATER));
+                            comp.results.potencia = -effectiveCoolingPower;
+                            break;
+                        case 'Bomba': comp.results.tempSaida = currentTemp; comp.results.potencia = 0; break;
+                        case 'Tubo':
+                            const deltaT_tubo = currentTemp - tempExterior;
+                            const perdaTubo = comp.params.comprimento * comp.params.perdaTermica * deltaT_tubo;
+                            comp.results.tempSaida = currentTemp - (perdaTubo / (caudal * SPECIFIC_HEAT_WATER));
+                            comp.results.potencia = -perdaTubo;
+                            break;
+                        case 'Válvula de Regulação': comp.results.tempSaida = currentTemp; comp.results.potencia = 0; break;
+                        case 'Radiador': case 'Unidade de Tratamento de Ar': case 'Carga Genérica': case 'Consumidor Genérico': case 'Permutador de Placas':
+                            let potenciaConsumo = comp.params.potencia;
+                            if (dynamicSimState.running && comp.params.cargaVariavel && comp.params.perfilArray && comp.params.perfilArray.length === 24) {
+                                const horaDoDia = (dynamicSimState.hour -1) % 24;
+                                potenciaConsumo = comp.params.perfilArray[horaDoDia] || 0;
+                            }
+                            comp.results.tempSaida = currentTemp - (potenciaConsumo / (caudal * SPECIFIC_HEAT_WATER));
+                            comp.results.potencia = -potenciaConsumo; 
+                            break;
+                        case 'Acumulador': case 'Depósito de Inércia': case 'Coletor':
+                            comp.results.tempSaida = currentTemp; comp.results.potencia = 0; break;
+                    }
+                    currentTemp = comp.results.tempSaida;
+                });
+                if(loopConnection) tempRetorno = currentTemp; else break;
+            }
+
+             if (loopConnection && producer.type === 'Caldeira') {
+                const potNec = caudal * SPECIFIC_HEAT_WATER * (producer.params.tempSaida - tempRetorno);
+                producer.results.potencia = potNec > 0 ? potNec / producer.params.rendimento : 0;
+             }
+
+            steadyResultsAvailable = true;
+            if(!dynamicSimState.running) draw(); 
+        }
+
+        function startDynamicSimulation() {
+            if (dynamicSimState.running) return;
+            dynamicSimState.running = true;
+            
+            startDynamicBtn.classList.add('hidden');
+            pauseDynamicBtn.classList.remove('hidden');
+            
+            if (dynamicSimState.hour === 0) {
+                 dynamicSimState.totalTermica = 0;
+                 dynamicSimState.totalEletrica = 0;
+            }
+
+            components.forEach(c => {
+                if(['Acumulador', 'Depósito de Inércia'].includes(c.type)) {
+                    if(!c.state) c.state = { temp: 20.0 };
+                }
+            });
+
+            dynamicSimState.intervalId = setInterval(dynamicStep, dynamicSimState.speed);
+        }
+        
+        function pauseDynamicSimulation() {
+            if (!dynamicSimState.running) return;
+            dynamicSimState.running = false;
+            clearInterval(dynamicSimState.intervalId);
+            dynamicSimState.intervalId = null;
+            
+            pauseDynamicBtn.classList.add('hidden');
+            startDynamicBtn.classList.remove('hidden');
+            startDynamicBtn.textContent = 'Continuar';
+        }
+
+        function resetDynamicSimulation() {
+            if(dynamicSimState.intervalId) clearInterval(dynamicSimState.intervalId);
+            dynamicSimState.running = false;
+            dynamicSimState.intervalId = null;
+            dynamicSimState.hour = 0;
+            dynamicSimState.totalTermica = 0;
+            dynamicSimState.totalEletrica = 0;
+            dynamicTimeDisplay.textContent = `Hora: 0 H`;
+            totalTermicaDisplay.textContent = `0.0 kWh`;
+            totalEletricoDisplay.textContent = `0.0 kWh`;
+
+            pauseDynamicBtn.classList.add('hidden');
+            startDynamicBtn.classList.remove('hidden');
+            startDynamicBtn.textContent = 'Sim. Dinâmica';
+        }
+
+        function dynamicStep() {
+            dynamicSimState.hour++;
+            if (dynamicSimState.hour > 8760) {
+                resetDynamicSimulation();
+                showMessage("Simulação dinâmica de 1 ano concluída.");
+                return;
+            }
+            dynamicTimeDisplay.textContent = `Hora: ${dynamicSimState.hour} H`;
+            
+            runSteadyStateCalculation();
+
+            let consumoTermicoHora = 0;
+            let consumoEletricoHora = 0;
+
+            components.forEach(comp => {
+                const potTermica = Math.abs(comp.results.potencia || 0);
+                const tempExterior = parseFloat(document.getElementById('tempExterior').value) || 10;
+
+                // Acumulação de energia térmica
+                if (['Radiador', 'Unidade de Tratamento de Ar', 'Carga Genérica', 'Consumidor Genérico', 'Permutador de Placas'].includes(comp.type)) {
+                    consumoTermicoHora += potTermica;
+                }
+
+                // Acumulação de consumo elétrico
+                switch(comp.type) {
+                    case 'Bomba de Calor':
+                        const effectiveCOP = comp.params.COP - (7 - tempExterior) * 0.05;
+                        if (potTermica > 0 && effectiveCOP > 0) {
+                            consumoEletricoHora += potTermica / effectiveCOP;
+                        }
+                        break;
+                    case 'Chiller':
+                        const effectiveEER = comp.params.EER * (Math.max(0.1, 1 - (tempExterior - 35) * 0.03));
+                         if (potTermica > 0 && effectiveEER > 0) {
+                            consumoEletricoHora += potTermica / effectiveEER;
+                        }
+                        break;
+                    case 'Bomba':
+                    case 'Caldeira':
+                        consumoEletricoHora += comp.params.potEletrica || 0;
+                        break;
+                }
+            });
+            
+            // Energia é Potência (W) * Tempo (h) = Wh
+            dynamicSimState.totalTermica += consumoTermicoHora;
+            dynamicSimState.totalEletrica += consumoEletricoHora;
+
+            totalTermicaDisplay.textContent = `${(dynamicSimState.totalTermica / 1000).toFixed(1)} kWh`;
+            totalEletricoDisplay.textContent = `${(dynamicSimState.totalEletrica / 1000).toFixed(1)} kWh`;
+            
+            draw();
+        }
+        
+        function clearWorkspace() {
+            resetDynamicSimulation();
+            components = []; connections = []; nextId = 0; steadyResultsAvailable = false;
+            hidePropertiesPanel(); draw(); 
+        }
+
+        function populateLibrary() {
+            const categories = {}; const categoryOrder = ['Produção', 'Impulsão', 'Distribuição', 'Consumo', 'Acumulação'];
+            for (const type in componentTemplates) {
+                const template = componentTemplates[type];
+                if (!categories[template.category]) categories[template.category] = [];
+                categories[template.category].push(type);
+            }
+            categoryOrder.forEach(category => {
+                if (!categories[category]) return;
+                const categoryDiv = document.createElement('div'); categoryDiv.className = 'mb-4';
+                const categoryTitle = document.createElement('h3'); categoryTitle.className = 'font-bold text-md text-blue-800 mb-2';
+                categoryTitle.textContent = category; categoryDiv.appendChild(categoryTitle);
+                categories[category].forEach(type => {
+                    const template = componentTemplates[type];
+                    const item = document.createElement('div');
+                    item.className = 'component-library-item cursor-grab p-3 mb-2 rounded-lg border flex items-center space-x-3';
+                    item.draggable = true; item.dataset.type = type; item.style.borderColor = template.color;
+                    const colorIndicator = document.createElement('div'); colorIndicator.className = 'w-3 h-8 rounded';
+                    colorIndicator.style.backgroundColor = template.color; item.appendChild(colorIndicator);
+                    const text = document.createElement('span'); text.textContent = type; text.className = 'font-semibold'; item.appendChild(text);
+                    item.addEventListener('dragstart', (e) => e.dataTransfer.setData('text/plain', type));
+                    categoryDiv.appendChild(item);
+                });
+                libraryContainer.appendChild(categoryDiv);
+            });
+        }
+
+        // --- INICIALIZAÇÃO E EVENT LISTENERS ---
+        window.addEventListener('resize', () => { setupCanvas(); draw(); });
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (selectedConnection) {
+                    connections = connections.filter(c => c !== selectedConnection);
+                    selectedConnection = null;
+                    draw();
+                } else if (selectedComponent) {
+                    deleteComponent(selectedComponent.id);
+                }
+            }
+        });
+        
+        simulateSteadyBtn.addEventListener('click', () => {
+            if (dynamicSimState.running) {
+                showMessage("Por favor, pare a simulação dinâmica primeiro.");
+                return;
+            }
+            runSteadyStateCalculation();
+            showMessage("Simulação Steady-State concluída!");
+        });
+
+        startDynamicBtn.addEventListener('click', startDynamicSimulation);
+        pauseDynamicBtn.addEventListener('click', pauseDynamicSimulation);
+        showTableBtn.addEventListener('click', showDataTable);
+        closeTableModalBtn.addEventListener('click', hideDataTable);
+        clearBtn.addEventListener('click', clearWorkspace);
+        
+        speedSelector.addEventListener('click', (e) => {
+            if(e.target.tagName === 'BUTTON') {
+                const newSpeed = parseInt(e.target.dataset.speed, 10);
+                dynamicSimState.speed = newSpeed;
+                
+                speedSelector.querySelectorAll('button').forEach(btn => {
+                    btn.classList.remove('speed-btn-active');
+                    btn.classList.add('speed-btn-inactive');
+                });
+                e.target.classList.add('speed-btn-active');
+                e.target.classList.remove('speed-btn-inactive');
+
+                if (dynamicSimState.running) {
+                    clearInterval(dynamicSimState.intervalId);
+                    dynamicSimState.intervalId = setInterval(dynamicStep, newSpeed);
+                }
+            }
+        });
+
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            const worldPosBefore = screenToWorld(mouseX, mouseY);
+
+            const zoomFactor = 1.1;
+            const newScale = e.deltaY < 0 ? viewTransform.scale * zoomFactor : viewTransform.scale / zoomFactor;
+            viewTransform.scale = Math.max(0.2, Math.min(3, newScale));
+            
+            const worldPosAfter = screenToWorld(mouseX, mouseY);
+            
+            viewTransform.offsetX += (worldPosAfter.x - worldPosBefore.x) * viewTransform.scale;
+            viewTransform.offsetY += (worldPosAfter.y - worldPosBefore.y) * viewTransform.scale;
+
+            draw();
+        }, { passive: false });
 
         canvas.addEventListener('dragover', (e) => e.preventDefault());
         canvas.addEventListener('drop', (e) => {
             e.preventDefault();
-            const componentId = e.dataTransfer.getData('text/plain');
-            const componentData = components.find(c => c.id === componentId);
-            if (!componentData) return;
-            
+            const type = e.dataTransfer.getData('text/plain');
             const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            const gridX = Math.floor(x / GRID_SNAP_SIZE);
-            const gridY = Math.floor(y / GRID_SNAP_SIZE);
+            const worldPos = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+            
+            let x = worldPos.x - COMPONENT_WIDTH / 2;
+            let y = worldPos.y - COMPONENT_HEIGHT / 2;
+            
+            x = Math.round(x / GRID_SIZE) * GRID_SIZE;
+            y = Math.round(y / GRID_SIZE) * GRID_SIZE;
 
-            if (!isCellOccupied(gridX, gridY)) {
-                createComponentOnCanvas(componentData, gridX, gridY);
+            const template = componentTemplates[type];
+            if (template) {
+                components.push({
+                    id: nextId++, type: type, x: x, y: y, flipped: false,
+                    params: JSON.parse(JSON.stringify(template.params)),
+                    results: { caudal: null, tempEntrada: null, tempSaida: null, potencia: null }
+                });
+                draw();
             }
         });
 
-        function getArrowCharacter(pos, type) {
-            const isOut = type.includes('out');
-            if (pos.includes('left')) return isOut ? '◀' : '▶';
-            if (pos.includes('right')) return isOut ? '▶' : '◀';
-            if (pos.includes('top')) return isOut ? '▲' : '▼';
-            if (pos.includes('bottom')) return isOut ? '▼' : '▲';
-            return '▶'; // Default
-        }
-        
-        function getConnectorTooltip(type) {
-            if (type.includes('in_p') || type.includes('in_evap') || type === 'in') {
-                return 'Entrada Primário';
-            }
-            if (type.includes('out_p') || type.includes('out_evap') || type === 'out') {
-                return 'Saída Primário';
-            }
-            if (type === 'in_s') {
-                return 'Entrada Secundário';
-            }
-            if (type === 'out_s') {
-                return 'Saída Secundário';
-            }
-            if (type.includes('in_cond')) {
-                return 'Entrada Condensador';
-            }
-            if (type.includes('out_cond')) {
-                return 'Saída Condensador';
-            }
-            if (type.startsWith('in_')) return 'Entrada';
-            if (type.startsWith('out_')) return 'Saída';
-            return 'Conector';
-        }
-
-        function createComponentOnCanvas(componentData, gridX, gridY) {
-            const uniqueId = `inst_${idCounter++}`;
-            const newItem = document.createElement('div');
-            newItem.id = uniqueId;
-            newItem.className = 'canvas-item bg-white/80 backdrop-blur-sm rounded-lg shadow-sm';
+        canvas.addEventListener('mousedown', (e) => {
+            mouse.down = true; mouse.dragMoved = false;
+            const rect = canvas.getBoundingClientRect();
+            const worldPos = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+            const mx = worldPos.x; const my = worldPos.y;
             
-            if (componentData.id === 'collector') {
-                newItem.style.height = '160px';
-            }
-
-            const pixelX = gridX * GRID_SNAP_SIZE;
-            const pixelY = gridY * GRID_SNAP_SIZE;
-            newItem.style.left = `${pixelX}px`;
-            newItem.style.top = `${pixelY}px`;
-            
-            newItem.innerHTML = `
-                <div class="component-id-label">${uniqueId}</div>
-                <div class="controls">
-                    <button class="control-btn rotate-btn" title="Rodar">
-                        <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h5M20 20v-5h-5"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 9a9 9 0 0114.13-6.36M20 15a9 9 0 01-14.13 6.36"></path></svg>
-                    </button>
-                    <button class="control-btn flip-btn" title="Espelho">
-                        <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l-7-7 7-7m5 14l7-7-7-7"></path><path d="M12 3v18"></path></svg>
-                    </button>
-                </div>
-                <div class="inner-content pointer-events-none">
-                    <div class="text-3xl">${componentData.icon}</div>
-                    <span class="text-xs text-center text-gray-700 mt-1">${componentData.name}</span>
-                </div>`;
-            
-            canvas.appendChild(newItem);
-
-            // Store data
-            placedComponents[uniqueId] = {
-                type: componentData.id, name: componentData.name, icon: componentData.icon,
-                params: JSON.parse(JSON.stringify(componentData.params)),
-                gridX: gridX, gridY: gridY,
-                rotation: 0, flipH: false
-            };
-            
-            if (componentData.id === 'collector') {
-                redrawCollectorConnectors(uniqueId);
-            } else {
-                 componentData.connectors.forEach((conn, index) => {
-                    const connectorEl = document.createElement('div');
-                    connectorEl.className = `connector connector-pos-${conn.pos}`;
-                    connectorEl.dataset.componentId = uniqueId;
-                    connectorEl.dataset.connectorIndex = index;
-                    connectorEl.dataset.type = conn.type;
-                    connectorEl.title = getConnectorTooltip(conn.type);
-                    connectorEl.innerHTML = getArrowCharacter(conn.pos, conn.type);
-                    newItem.appendChild(connectorEl);
-                    connectorEl.addEventListener('click', handleConnectorClick);
-                });
-            }
-
-            // Add Event Listeners
-            newItem.querySelector('.rotate-btn').addEventListener('click', (e) => { e.stopPropagation(); rotateComponent(uniqueId); });
-            newItem.querySelector('.flip-btn').addEventListener('click', (e) => { e.stopPropagation(); flipComponent(uniqueId); });
-            newItem.addEventListener('mousedown', handleMouseDown);
-            newItem.addEventListener('click', (e) => { e.stopPropagation(); selectComponent(uniqueId); });
-        }
-
-        // --- Transformations ---
-        function rotateComponent(id) {
-            const component = placedComponents[id];
-            component.rotation = (component.rotation + 90) % 360;
-            applyTransformations(id);
-        }
-
-        function flipComponent(id) {
-            const component = placedComponents[id];
-            component.flipH = !component.flipH;
-
-            if (component.type === 'collector') {
-                 redrawCollectorConnectors(id);
-            }
-
-            applyTransformations(id);
-        }
-
-        function applyTransformations(id) {
-            const component = placedComponents[id];
-            const element = document.getElementById(id);
-            const innerContent = element.querySelector('.inner-content');
-
-            element.style.transform = `rotate(${component.rotation}deg) scaleX(${component.flipH ? -1 : 1})`;
-            innerContent.style.transform = `scaleX(${component.flipH ? -1 : 1})`;
-
-            if (component.type === 'collector') {
-                updatePipesForComponent(id);
-                return;
-            }
-
-            const originalComponentData = components.find(c => c.id === component.type);
-            const connectorElements = element.querySelectorAll('.connector');
-            
-            connectorElements.forEach((connectorEl, index) => {
-                const originalConnector = originalComponentData.connectors[index];
-                const newPos = calculateNewPosition(originalConnector.pos, component.rotation, component.flipH);
-                
-                let currentType = originalConnector.type;
-                if (component.flipH) {
-                    if (currentType.includes('in')) currentType = currentType.replace('in', 'out');
-                    else if (currentType.includes('out')) currentType = currentType.replace('out', 'in');
-                }
-                connectorEl.dataset.type = currentType;
-                connectorEl.title = getConnectorTooltip(currentType);
-                connectorEl.innerHTML = getArrowCharacter(newPos, currentType);
-
-                connectorEl.className = 'connector';
-                newPos.split('-').forEach(p => connectorEl.classList.add(`connector-pos-${p}`));
-            });
-            
-            updatePipesForComponent(id);
-        }
-
-        function calculateNewPosition(originalPos, rotation, flipH) {
-            let pos = originalPos;
-
-            if (flipH) {
-                if (pos.includes('left')) pos = pos.replace('left', 'right');
-                else if (pos.includes('right')) pos = pos.replace('right', 'left');
-            }
-
-            const rotations = rotation / 90;
-            for (let i = 0; i < rotations; i++) {
-                const parts = pos.split('-');
-                const newParts = parts.map(part => {
-                    switch (part) {
-                        case 'top': return 'right';
-                        case 'right': return 'bottom';
-                        case 'bottom': return 'left';
-                        case 'left': return 'top';
-                        default: return part;
-                    }
-                });
-                pos = (newParts.length === 2 && (newParts[0] === 'left' || newParts[0] === 'right')) ? newParts.join('-') : newParts.reverse().join('-');
-            }
-            return pos;
-        }
-
-        // --- Piping Logic ---
-        function handleConnectorClick(e) {
-            e.stopPropagation();
-            const connector = e.target;
-            const componentId = connector.dataset.componentId;
-            const connectorIndex = connector.dataset.connectorIndex;
-
-            if (!isConnecting) {
-                if (isConnectorUsed(componentId, connectorIndex)) return;
-                isConnecting = true;
-                startConnector = connector;
-                startConnector.style.transform = 'scale(1.3)';
-                const startPos = getConnectorCenter(startConnector);
-                tempPipe = document.createElementNS("http://www.w3.org/2000/svg", 'line');
-                tempPipe.setAttribute('x1', startPos.x); tempPipe.setAttribute('y1', startPos.y);
-                tempPipe.setAttribute('x2', startPos.x); tempPipe.setAttribute('y2', startPos.y);
-                tempPipe.style.stroke = "#3b82f6"; tempPipe.style.strokeWidth = "3px"; tempPipe.style.pointerEvents = "none";
-                pipeGroup.appendChild(tempPipe);
-                canvas.addEventListener('mousemove', updateTempPipe);
-            } else {
-                const endConnector = connector;
-                const endComponentId = endConnector.dataset.componentId;
-                const endConnectorIndex = endConnector.dataset.connectorIndex;
-
-                if (isConnectorUsed(endComponentId, endConnectorIndex)) { cancelConnection(); return; }
-
-                const startType = startConnector.dataset.type;
-                const endType = endConnector.dataset.type;
-
-                if (startConnector.dataset.componentId === endConnector.dataset.componentId ||
-                    (startType.includes('in') && endType.includes('in')) ||
-                    (startType.includes('out') && endType.includes('out'))) {
-                    cancelConnection(); return;
-                }
-                
-                const startPos = getConnectorCenter(startConnector);
-                const endPos = getConnectorCenter(endConnector);
-                
-                const connId = `conn_${idCounter++}`;
-                const polyline = document.createElementNS("http://www.w3.org/2000/svg", 'polyline');
-                polyline.setAttribute('marker-mid', 'url(#arrowhead)');
-                polyline.setAttribute('marker-end', 'url(#arrowhead)');
-
-                connections[connId] = {
-                    from: { componentId: startConnector.dataset.componentId, connectorIndex: startConnector.dataset.connectorIndex },
-                    to: { componentId: endComponentId, connectorIndex: endConnectorIndex },
-                    line: polyline,
-                    points: [startPos, endPos],
-                    params: { dn: 50, comprimento_m: 10, caudal_m3h: 'Auto', velocidade_ms: 'Auto', perda_carga_mca: 'Auto', temperatura_c: 'Auto' }
-                };
-
-                polyline.dataset.connId = connId;
-                pipeGroup.appendChild(polyline);
-                redrawPolyline(connId);
-                
-                polyline.addEventListener('click', (e) => { e.stopPropagation(); selectPipe(connId); });
-                polyline.addEventListener('dblclick', (e) => { e.stopPropagation(); addVertexToPipe(connId, e); });
-                
-                cancelConnection();
-            }
-        }
-        
-        function updateTempPipe(e) {
-            const canvasRect = canvas.getBoundingClientRect();
-            const x = e.clientX - canvasRect.left;
-            const y = e.clientY - canvasRect.top;
-            tempPipe.setAttribute('x2', x); tempPipe.setAttribute('y2', y);
-        }
-        
-        function cancelConnection() {
-            if (tempPipe) tempPipe.remove();
-            if(startConnector) startConnector.style.transform = '';
-            isConnecting = false; startConnector = null; tempPipe = null;
-            canvas.removeEventListener('mousemove', updateTempPipe);
-        }
-        
-        function getConnectorCenter(connectorEl) {
-            const canvasRect = canvas.getBoundingClientRect();
-            const connectorRect = connectorEl.getBoundingClientRect();
-            return {
-                x: connectorRect.left - canvasRect.left + (connectorRect.width / 2),
-                y: connectorRect.top - canvasRect.top + (connectorRect.height / 2)
-            };
-        }
-        
-        function isConnectorUsed(componentId, connectorIndex) {
-            return Object.values(connections).some(c => 
-                (c.from.componentId == componentId && c.from.connectorIndex == connectorIndex) ||
-                (c.to.componentId == componentId && c.to.connectorIndex == connectorIndex)
-            );
-        }
-        
-        function redrawPolyline(connId) {
-            const conn = connections[connId];
-            if (!conn) return;
-            const pointsString = conn.points.map(p => `${p.x},${p.y}`).join(' ');
-            conn.line.setAttribute('points', pointsString);
-        }
-
-        function addVertexToPipe(connId, e) {
-            const conn = connections[connId];
-            if (!conn) return;
-
-            const canvasRect = canvas.getBoundingClientRect();
-            const newPoint = { 
-                x: e.clientX - canvasRect.left, 
-                y: e.clientY - canvasRect.top
-            };
-
-            let bestSegmentIndex = 0;
-            let minDistance = Infinity;
-
-            for (let i = 0; i < conn.points.length - 1; i++) {
-                const p1 = conn.points[i];
-                const p2 = conn.points[i + 1];
-                const distance = pointToSegmentDistance(newPoint, p1, p2);
-                if (distance < minDistance) {
-                    minDistance = distance;
-                    bestSegmentIndex = i;
+            for (const comp of [...components].reverse()) {
+                for(const name of componentTemplates[comp.type].outputs) {
+                    const pos = getConnectorPos(comp, 'output', name);
+                    if (Math.hypot(mx - pos.x, my - pos.y) < CONNECTOR_RADIUS + 2) { connectingFrom = { component: comp, connector: name }; draw(); return; }
                 }
             }
-            conn.points.splice(bestSegmentIndex + 1, 0, newPoint);
-            redrawPolyline(connId);
-            if (selectedPipeId === connId) createVertexHandles(connId);
-        }
-        
-        // --- Drag and Drop Logic ---
-        function handleMouseMove(e) {
-            if (draggedElement) {
-                const canvasRect = canvas.getBoundingClientRect();
-                let x = e.clientX - canvasRect.left - offsetX; 
-                let y = e.clientY - canvasRect.top - offsetY;
-                x = Math.max(0, Math.min(x, canvas.clientWidth - COMPONENT_SIZE));
-                y = Math.max(0, Math.min(y, canvas.clientHeight - COMPONENT_SIZE));
-                draggedElement.style.left = `${x}px`; draggedElement.style.top = `${y}px`;
-                updatePipesForComponent(draggedElement.id);
-            } else if (draggedVertex) {
-                const canvasRect = canvas.getBoundingClientRect();
-                const x = e.clientX - canvasRect.left;
-                const y = e.clientY - canvasRect.top;
-                const newX = Math.round(x / PIPE_GRID_SNAP) * PIPE_GRID_SNAP;
-                const newY = Math.round(y / PIPE_GRID_SNAP) * PIPE_GRID_SNAP;
+            draggingComponent = components.find(c => mx > c.x && mx < c.x + COMPONENT_WIDTH && my > c.y && my < c.y + COMPONENT_HEIGHT);
+            if(draggingComponent) { 
+                draggingComponent.offsetX = mx - draggingComponent.x; 
+                draggingComponent.offsetY = my - draggingComponent.y; 
+                return; 
+            }
 
-                const { connId, pointIndex } = draggedVertex;
-                connections[connId].points[pointIndex] = { x: newX, y: newY };
-                
-                draggedVertex.element.setAttribute('cx', newX);
-                draggedVertex.element.setAttribute('cy', newY);
-                redrawPolyline(connId);
-            }
-        }
+            // Start panning
+            panning.active = true;
+            panning.startX = e.clientX;
+            panning.startY = e.clientY;
 
-        function handleMouseUp(e) {
-            if (draggedElement) {
-                const id = draggedElement.id;
-                const originalGridPos = { x: placedComponents[id].gridX, y: placedComponents[id].gridY };
-                const finalLeft = parseFloat(draggedElement.style.left); const finalTop = parseFloat(draggedElement.style.top);
-                const newGridX = Math.round(finalLeft / GRID_SNAP_SIZE); const newGridY = Math.round(finalTop / GRID_SNAP_SIZE);
-                if (!isCellOccupied(newGridX, newGridY, id)) {
-                    placedComponents[id].gridX = newGridX; placedComponents[id].gridY = newGridY;
-                } else {
-                    placedComponents[id].gridX = originalGridPos.x; placedComponents[id].gridY = originalGridPos.y;
-                }
-                const finalPixelX = placedComponents[id].gridX * GRID_SNAP_SIZE;
-                const finalPixelY = placedComponents[id].gridY * GRID_SNAP_SIZE;
-                draggedElement.style.left = `${finalPixelX}px`;
-                draggedElement.style.top = `${finalPixelY}px`;
-                updatePipesForComponent(id);
-                draggedElement.classList.remove('dragging');
-                draggedElement = null;
-                 if (isSimulating) { calculateAndApplySimulationData(); updateSimulationView(); }
-            }
-            if (draggedVertex) {
-                draggedVertex = null;
-                 if (isSimulating) { calculateAndApplySimulationData(); updateSimulationView(); }
-            }
-            document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
-        }
-        
-        function updatePipesForComponent(componentId) {
-            for (const connId in connections) {
-                const conn = connections[connId];
-                let changed = false;
-                if (conn.from.componentId === componentId) {
-                    const fromConnector = document.querySelector(`.connector[data-component-id="${conn.from.componentId}"][data-connector-index="${conn.from.connectorIndex}"]`);
-                    if(fromConnector) { conn.points[0] = getConnectorCenter(fromConnector); changed = true; }
-                }
-                if (conn.to.componentId === componentId) {
-                    const toConnector = document.querySelector(`.connector[data-component-id="${conn.to.componentId}"][data-connector-index="${conn.to.connectorIndex}"]`);
-                    if(toConnector) { conn.points[conn.points.length - 1] = getConnectorCenter(toConnector); changed = true; }
-                }
-                if(changed) redrawPolyline(connId);
-            }
-        }
-        
-        canvas.addEventListener('click', (e) => {
-            if (isConnecting) cancelConnection();
-            else closePanel();
         });
-        
-        function isCellOccupied(gridX, gridY, excludeId = null) {
-            return Object.keys(placedComponents).some(id => id !== excludeId && placedComponents[id].gridX === gridX && placedComponents[id].gridY === gridY);
-        }
 
-        function handleMouseDown(e) {
-            if (e.target.closest('.control-btn') || e.target.classList.contains('connector')) return;
-            e.preventDefault(); e.stopPropagation();
-            draggedElement = e.target.closest('.canvas-item');
-            if (!draggedElement) return;
-            selectComponent(draggedElement.id);
-            draggedElement.classList.add('dragging');
-            const rect = draggedElement.getBoundingClientRect();
-            const canvasRect = canvas.getBoundingClientRect();
-            offsetX = e.clientX - rect.left; 
-            offsetY = e.clientY - rect.top;
-            document.addEventListener('mousemove', handleMouseMove);
-            document.addEventListener('mouseup', handleMouseUp);
-        }
-
-        // --- UI and Properties Panel ---
-        function selectComponent(id) {
-            if (selectedComponentId === id) return;
-            closePanel(); 
-            selectedComponentId = id;
-            document.getElementById(id).classList.add('selected');
-            updateComponentPropertiesPanel(placedComponents[id], id);
-            propertiesPanel.classList.remove('translate-x-full');
-        }
-
-        function selectPipe(id) {
-            if (selectedPipeId === id) return;
-            closePanel(); 
-            selectedPipeId = id;
-            const conn = connections[id];
-            if (conn) {
-                conn.line.style.stroke = '#3b82f6'; 
-                conn.line.style.strokeWidth = '5px';
-                updatePipePropertiesPanel(id);
-                createVertexHandles(id);
-                propertiesPanel.classList.remove('translate-x-full');
-            }
-        }
-
-        function createVertexHandles(connId) {
-            removeVertexHandles();
-            const conn = connections[connId];
-            if (!conn) return;
-            conn.points.forEach((point, index) => {
-                // Do not create handles for start and end points connected to components
-                if (index === 0 || index === conn.points.length - 1) return;
-
-                const handle = document.createElementNS("http://www.w3.org/2000/svg", 'circle');
-                handle.setAttribute('cx', point.x);
-                handle.setAttribute('cy', point.y);
-                handle.setAttribute('r', 6);
-                handle.classList.add('vertex-handle');
-                handle.dataset.connId = connId;
-                handle.dataset.pointIndex = index;
-                handleGroup.appendChild(handle);
-
-                handle.addEventListener('mousedown', (e) => {
-                    e.stopPropagation();
-                    draggedVertex = {
-                        connId: e.target.dataset.connId,
-                        pointIndex: parseInt(e.target.dataset.pointIndex),
-                        element: e.target
-                    };
-                    document.addEventListener('mousemove', handleMouseMove);
-                    document.addEventListener('mouseup', handleMouseUp);
-                });
-            });
-        }
-
-        function removeVertexHandles() {
-            handleGroup.innerHTML = '';
-        }
-
-        function changeCollectorPorts(id, portType, delta) {
-            const component = placedComponents[id];
-            if (!component) return;
-            const paramKey = `num_${portType}`;
-            let num = component.params[paramKey];
-            num += delta;
-            if (num < 1) num = 1;
-            if (num > 5) num = 5;
-            component.params[paramKey] = num;
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect(); 
+            mouse.x = e.clientX - rect.left; mouse.y = e.clientY - rect.top;
             
-            redrawCollectorConnectors(id);
-            updateComponentPropertiesPanel(component, id); // Refresh panel
-        }
+            if (mouse.down && (draggingComponent || panning.active)) { mouse.dragMoved = true; }
 
-        function redrawCollectorConnectors(id) {
-            const component = placedComponents[id];
-            const element = document.getElementById(id);
-            if (!component || !element) return;
-            
-            element.querySelectorAll('.connector').forEach(c => c.remove());
-
-            const num_entradas = component.params.num_entradas;
-            const num_saidas = component.params.num_saidas;
-            const isFlipped = component.flipH;
-
-            // Entradas (Left side)
-            for (let i = 0; i < num_entradas; i++) {
-                const yPercent = (i + 1) * 100 / (num_entradas + 1);
-                const type = isFlipped ? 'out' : 'in';
-                const connector = document.createElement('div');
-                connector.className = 'connector';
-                connector.dataset.componentId = id;
-                connector.dataset.connectorIndex = i; // Index from 0 to num_entradas-1
-                connector.dataset.type = `${type}_${i+1}`;
-                connector.title = getConnectorTooltip(type);
-                connector.innerHTML = getArrowCharacter('left', connector.dataset.type);
-                connector.style.left = '-12px';
-                connector.style.top = `${yPercent}%`;
-                connector.style.transform = 'translateY(-50%)';
-                connector.addEventListener('click', handleConnectorClick);
-                element.appendChild(connector);
+            if (draggingComponent) {
+                const worldPos = screenToWorld(mouse.x, mouse.y);
+                let newX = worldPos.x - draggingComponent.offsetX;
+                let newY = worldPos.y - draggingComponent.offsetY;
+                draggingComponent.x = Math.round(newX / GRID_SIZE) * GRID_SIZE;
+                draggingComponent.y = Math.round(newY / GRID_SIZE) * GRID_SIZE;
+                draw();
+            } else if (connectingFrom) { 
+                draw();
+            } else if (panning.active) {
+                const dx = e.clientX - panning.startX;
+                const dy = e.clientY - panning.startY;
+                viewTransform.offsetX += dx;
+                viewTransform.offsetY += dy;
+                panning.startX = e.clientX;
+                panning.startY = e.clientY;
+                draw();
             }
-            
-            // Saídas (Right side)
-            for (let i = 0; i < num_saidas; i++) {
-                const yPercent = (i + 1) * 100 / (num_saidas + 1);
-                const type = isFlipped ? 'in' : 'out';
-                const connector = document.createElement('div');
-                connector.className = 'connector';
-                connector.dataset.componentId = id;
-                connector.dataset.connectorIndex = i + num_entradas; // Index starts after entradas
-                connector.dataset.type = `${type}_${i+1}`;
-                connector.title = getConnectorTooltip(type);
-                connector.innerHTML = getArrowCharacter('right', connector.dataset.type);
-                connector.style.right = '-12px';
-                connector.style.top = `${yPercent}%`;
-                connector.style.transform = 'translateY(-50%)';
-                connector.addEventListener('click', handleConnectorClick);
-                element.appendChild(connector);
-            }
+        });
 
-            updatePipesForComponent(id);
-        }
+        canvas.addEventListener('mouseup', (e) => {
+            const worldPos = screenToWorld(e.clientX - e.target.getBoundingClientRect().left, e.clientY - e.target.getBoundingClientRect().top);
+            const mx = worldPos.x; const my = worldPos.y;
 
-        function updateComponentPropertiesPanel(data, id) {
-            propertiesContent.innerHTML = '';
-            const header = document.createElement('div');
-            header.className = 'mb-4 border-b pb-2';
-            header.innerHTML = `<div class="flex items-center space-x-3"><span class="text-4xl">${data.icon}</span><div><h4 class="text-lg font-semibold">${data.name}</h4><p class="text-xs text-gray-400">ID: ${id}</p></div></div>`;
-            propertiesContent.appendChild(header);
-            const form = document.createElement('div');
-            form.className = 'space-y-3';
-            for (const key in data.params) {
-                const value = data.params[key];
-                const labelText = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                const group = document.createElement('div');
-                const label = document.createElement('label');
-                label.className = 'text-sm font-medium text-gray-600 mb-1 block';
-                label.textContent = labelText;
+            // 1. Handle finishing a new connection
+            if (connectingFrom) {
+                let connectionMade = false;
+                for (const comp of components) {
+                    if (comp.id === connectingFrom.component.id) continue;
+                    for(const name of componentTemplates[comp.type].inputs) {
+                        const pos = getConnectorPos(comp, 'input', name);
+                        if (Math.hypot(mx - pos.x, my - pos.y) < CONNECTOR_RADIUS + 2) {
+                            if (!connections.find(c => c.to.id === comp.id && c.to.connector === name)) {
+                                connections.push({ from: { id: connectingFrom.component.id, connector: connectingFrom.connector }, to: { id: comp.id, connector: name } });
+                                connectionMade = true;
+                            } else { showMessage('Este conector de entrada já está a ser utilizado.'); }
+                            break;
+                        }
+                    }
+                    if (connectionMade) break;
+                }
+            } 
+            // 2. Handle selection on simple click (no drag, not creating a connection)
+            else if (!mouse.dragMoved) { 
+                let clickedOnSomething = false;
                 
-                if (data.type === 'pump_var' && key === 'modo_controlo') {
-                    const select = document.createElement('select');
-                    select.className = 'w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
-                    ['Pressão', 'Temperatura'].forEach(opt => {
-                        const optionEl = document.createElement('option');
-                        optionEl.value = opt; optionEl.textContent = opt;
-                        if (opt === value) optionEl.selected = true;
-                        select.appendChild(optionEl);
-                    });
-                    select.addEventListener('change', (e) => { placedComponents[id].params[key] = e.target.value; });
-                    group.append(label, select);
-                } else if (data.type === 'heat_exchanger' && key === 'tipo') {
-                    const select = document.createElement('select');
-                    select.className = 'w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
-                    ['Placas', 'Tubular'].forEach(opt => {
-                        const optionEl = document.createElement('option');
-                        optionEl.value = opt; optionEl.textContent = opt;
-                        if (opt === value) optionEl.selected = true;
-                        select.appendChild(optionEl);
-                    });
-                    select.addEventListener('change', (e) => { placedComponents[id].params[key] = e.target.value; });
-                    group.append(label, select);
-                } else if (data.type === 'collector' && (key === 'num_entradas' || key === 'num_saidas')) {
-                    const portType = key === 'num_entradas' ? 'entradas' : 'saidas';
-                    const controlGroup = document.createElement('div');
-                    controlGroup.className = 'flex items-center justify-between';
-                    const minusBtn = document.createElement('button');
-                    minusBtn.textContent = '-';
-                    minusBtn.className = 'px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded-md font-bold';
-                    minusBtn.addEventListener('click', () => changeCollectorPorts(id, portType, -1));
-                    const display = document.createElement('span');
-                    display.textContent = value;
-                    display.className = 'font-semibold text-lg';
-                    const plusBtn = document.createElement('button');
-                    plusBtn.textContent = '+';
-                    plusBtn.className = 'px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded-md font-bold';
-                    plusBtn.addEventListener('click', () => changeCollectorPorts(id, portType, 1));
-                    controlGroup.append(minusBtn, display, plusBtn);
-                    group.append(label, controlGroup);
+                const clickedComp = components.find(c => mx > c.x && mx < c.x + COMPONENT_WIDTH && my > c.y && my < c.y + COMPONENT_HEIGHT);
+                if (clickedComp) {
+                    selectedConnection = null;
+                    showPropertiesPanel(clickedComp);
+                    clickedOnSomething = true;
                 } else {
-                    const input = document.createElement('input');
-                    input.type = 'text';
-                    input.className = 'w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
-                    input.value = value;
+                    for (const conn of connections) {
+                        const fromComp = components.find(c => c.id === conn.from.id);
+                        const toComp = components.find(c => c.id === conn.to.id);
+                        if (!fromComp || !toComp) continue;
 
-                    if (value === 'Auto') {
-                        input.readOnly = true;
-                        input.classList.add('input-auto');
-                    }
+                        const p0 = getConnectorPos(fromComp, 'output', conn.from.connector);
+                        const p3 = getConnectorPos(toComp, 'input', conn.to.connector);
+                        const p1 = { x: p0.x + 50, y: p0.y };
+                        const p2 = { x: p3.x - 50, y: p3.y };
 
-                    input.addEventListener('input', (e) => {
-                        const newValue = isNaN(parseFloat(e.target.value)) ? e.target.value : parseFloat(e.target.value);
-                        placedComponents[id].params[key] = newValue;
-                        if (isSimulating) { 
-                            calculateAndApplySimulationData();
-                            updateSimulationView();
-                        }
-                    });
-                    group.append(label, input);
-                }
-                form.appendChild(group);
-            }
-            propertiesContent.appendChild(form);
-
-            const deleteBtn = document.createElement('button');
-            deleteBtn.innerHTML = `<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>Apagar Componente`;
-            deleteBtn.className = 'w-full mt-6 flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500';
-            deleteBtn.addEventListener('click', () => deleteComponent(id));
-            propertiesContent.appendChild(deleteBtn);
-        }
-
-        function updatePipePropertiesPanel(id) {
-            propertiesContent.innerHTML = '';
-            const data = connections[id].params;
-            const header = document.createElement('div');
-            header.className = 'mb-4 border-b pb-2';
-            header.innerHTML = `<div class="flex items-center space-x-3"><svg class="w-10 h-10 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg><div><h4 class="text-lg font-semibold">Propriedades da Tubagem</h4><p class="text-xs text-gray-400">ID: ${id}</p></div></div>`;
-            propertiesContent.appendChild(header);
-            const form = document.createElement('div');
-            form.className = 'space-y-3';
-            for (const key in data) {
-                const value = data[key];
-                const labelText = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                const group = document.createElement('div');
-                const label = document.createElement('label');
-                label.className = 'text-sm font-medium text-gray-600 mb-1';
-                label.textContent = labelText;
-                const input = document.createElement('input');
-                input.type = 'text';
-                input.className = 'w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
-                input.value = value;
-                 if (value === 'Auto') {
-                    input.readOnly = true;
-                    input.classList.add('input-auto');
-                }
-                input.addEventListener('input', (e) => {
-                    const newValue = isNaN(parseFloat(e.target.value)) ? e.target.value : parseFloat(e.target.value);
-                    connections[id].params[key] = newValue;
-                     if (isSimulating) { updateSimulationView(); }
-                });
-                group.append(label, input);
-            }
-            propertiesContent.appendChild(form);
-
-            const deleteBtn = document.createElement('button');
-            deleteBtn.innerHTML = `<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>Apagar Tubagem`;
-            deleteBtn.className = 'w-full mt-6 flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500';
-            deleteBtn.addEventListener('click', () => deletePipe(id));
-            propertiesContent.appendChild(deleteBtn);
-        }
-
-        function deleteComponent(id) {
-            if (!placedComponents[id]) return;
-            const pipesToDelete = [];
-            for (const connId in connections) {
-                const conn = connections[connId];
-                if (conn.from.componentId === id || conn.to.componentId === id) pipesToDelete.push(connId);
-            }
-            pipesToDelete.forEach(connId => deletePipe(connId));
-            document.getElementById(id)?.remove();
-            delete placedComponents[id];
-            closePanel();
-        }
-
-        function deletePipe(id) {
-            if (connections[id]) {
-                connections[id].line.remove();
-                delete connections[id];
-                closePanel();
-            }
-        }
-        
-        function closePanel() {
-            if (selectedComponentId && document.getElementById(selectedComponentId)) {
-                document.getElementById(selectedComponentId).classList.remove('selected');
-            }
-            selectedComponentId = null;
-            if (selectedPipeId && connections[selectedPipeId]) {
-                const conn = connections[selectedPipeId];
-                conn.line.style.stroke = '';
-                conn.line.style.strokeWidth = '';
-            }
-            selectedPipeId = null;
-            removeVertexHandles();
-            propertiesPanel.classList.add('translate-x-full');
-            propertiesContent.innerHTML = '<p class="text-gray-500">Selecione um componente para ver as suas propriedades.</p>';
-        }
-
-        if(closePanelBtn) closePanelBtn.addEventListener('click', closePanel);
-
-        // --- Simulation Logic ---
-        function toggleSimulation() {
-            isSimulating = !isSimulating;
-            if (isSimulating) {
-                simulateBtn.textContent = 'Parar Simulação';
-                simulateBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
-                simulateBtn.classList.add('bg-red-600', 'hover:bg-red-700');
-                closePanel();
-                calculateAndApplySimulationData();
-            } else {
-                simulateBtn.textContent = 'Simular - Steady State';
-                simulateBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
-                simulateBtn.classList.remove('bg-red-600', 'hover:bg-red-700');
-                clearSimulationData();
-            }
-            updateSimulationView();
-        }
-
-        function clearSimulationData() {
-            simulationResults = {};
-        }
-
-       function calculateAndApplySimulationData() {
-            clearSimulationData();
-            
-            const flowData = {}; 
-
-            // 1. Initialize data structures
-            for (const id in placedComponents) {
-                const compDef = components.find(c => c.id === placedComponents[id].type);
-                const numConnectors = compDef.id === 'collector' 
-                    ? parseInt(placedComponents[id].params.num_entradas) + parseInt(placedComponents[id].params.num_saidas)
-                    : compDef.connectors.length;
-                flowData[id] = { in: Array(numConnectors).fill(null), out: Array(numConnectors).fill(null) };
-            }
-            for (const id in connections) {
-                flowData[id] = null;
-            }
-
-            // 2. Seed initial flows from pumps
-            const pumps = Object.entries(placedComponents).filter(([id, comp]) => {
-                const compDef = components.find(c => c.id === comp.type);
-                return compDef && compDef.category === 'Impulsão';
-            });
-
-            pumps.forEach(([pumpId, pumpComp]) => {
-                const flowRate = pumpComp.params.caudal_agua_m3h;
-                const outConnectorIndex = components.find(c => c.id === pumpComp.type).connectors.findIndex(c => c.type.includes('out'));
-                if (outConnectorIndex !== -1) {
-                    flowData[pumpId].out[outConnectorIndex] = flowRate;
-                }
-            });
-
-            // 3. Iteratively propagate flows
-            for (let i = 0; i < 50; i++) {
-                let changed = false;
-
-                // Propagate from components to pipes
-                for (const [pipeId, conn] of Object.entries(connections)) {
-                    if (flowData[pipeId] === null) {
-                        const fromCompFlows = flowData[conn.from.componentId];
-                        if(fromCompFlows) {
-                            const fromConnectorFlow = fromCompFlows.out[conn.from.connectorIndex];
-                            if (fromConnectorFlow !== null) {
-                                flowData[pipeId] = fromConnectorFlow;
-                                changed = true;
-                            }
+                        if (isPointOnBezier({x: mx, y: my}, p0, p1, p2, p3)) {
+                            selectedConnection = conn;
+                            if(selectedComponent) hidePropertiesPanel();
+                            clickedOnSomething = true;
+                            break;
                         }
                     }
                 }
                 
-                // Propagate from pipes to components and calculate component outputs
-                for (const [compId, comp] of Object.entries(placedComponents)) {
-                    const compDef = components.find(c => c.id === comp.type);
-                    const compFlows = flowData[compId];
-
-                    // Connect pipes to component inputs
-                    for (const [pipeId, pipe] of Object.entries(connections)) {
-                         if (pipe.to.componentId === compId) {
-                            const inConnectorIndex = pipe.to.connectorIndex;
-                            if (compFlows.in[inConnectorIndex] === null && flowData[pipeId] !== null) {
-                                compFlows.in[inConnectorIndex] = flowData[pipeId];
-                                changed = true;
-                            }
-                         }
-                    }
-                    
-                    // Calculate component output flows
-                    if (compDef.id === 'collector') {
-                        const numInputs = comp.params.num_entradas;
-                        const numOutputs = comp.params.num_saidas;
-                        const inputs = compFlows.in.slice(0, numInputs).filter(f => f !== null);
-
-                        if (inputs.length > 0 && numOutputs > 0) {
-                            const totalInFlow = inputs.reduce((sum, f) => sum + f, 0);
-                            let regulatedFlow = 0;
-                            let unregulatedBranches = [];
-                            
-                            // Identify regulated vs unregulated branches
-                            for (let j = 0; j < numOutputs; j++) {
-                                const outIndex = numInputs + j;
-                                const outPipe = Object.values(connections).find(c => c.from.componentId === compId && c.from.connectorIndex === outIndex);
-                                if (outPipe) {
-                                    const nextComp = placedComponents[outPipe.to.componentId];
-                                    if (nextComp && nextComp.type === 'flow_valve') {
-                                        const valveFlow = nextComp.params.caudal_max_m3h;
-                                        compFlows.out[outIndex] = valveFlow;
-                                        regulatedFlow += valveFlow;
-                                    } else {
-                                        unregulatedBranches.push(outIndex);
-                                    }
-                                }
-                            }
-                            
-                            const remainingFlow = totalInFlow - regulatedFlow;
-                            if (unregulatedBranches.length > 0 && remainingFlow >= 0) {
-                                const flowPerBranch = remainingFlow / unregulatedBranches.length;
-                                unregulatedBranches.forEach(outIndex => {
-                                    if(compFlows.out[outIndex] === null) {
-                                        compFlows.out[outIndex] = flowPerBranch;
-                                        changed = true;
-                                    }
-                                });
-                            }
-                        }
-                    } else if (compDef.id === 'flow_valve') {
-                        if (compFlows.in[0] !== null && compFlows.out[1] === null) {
-                            const limitedFlow = Math.min(compFlows.in[0], comp.params.caudal_max_m3h);
-                            compFlows.out[1] = limitedFlow;
-                            changed = true;
-                        }
-                    } else { // Simple pass-through logic for other components
-                         compDef.connectors.forEach((connector, index) => {
-                             if (connector.type.includes('out') && compFlows.out[index] === null) {
-                                 const inConnectorIndex = compDef.connectors.findIndex(c => c.type.includes('in'));
-                                 if (inConnectorIndex !== -1 && compFlows.in[inConnectorIndex] !== null) {
-                                    compFlows.out[index] = compFlows.in[inConnectorIndex];
-                                    changed = true;
-                                 }
-                             }
-                         });
-                    }
-                }
-
-                if (!changed) break;
-            }
-
-            // 4. Populate simulationResults with final flows
-            for (const id in flowData) {
-                if (placedComponents[id]) {
-                    const flow = flowData[id].out.find(f => f !== null) ?? flowData[id].in.find(f => f !== null);
-                    if (flow !== undefined && flow !== null) {
-                         if (!simulationResults[id]) simulationResults[id] = {};
-                         simulationResults[id].caudal_agua_m3h = parseFloat(flow.toFixed(2));
-                    }
-                } else { 
-                     if (flowData[id] !== null) {
-                         if (!simulationResults[id]) simulationResults[id] = {};
-                         simulationResults[id].caudal_m3h = parseFloat(flowData[id].toFixed(2));
-                     }
+                if (!clickedOnSomething) {
+                    if(selectedComponent) hidePropertiesPanel();
+                    selectedConnection = null;
                 }
             }
             
-            // 5. Thermal calculations based on final flows
-            for (const [id, comp] of Object.entries(placedComponents)) {
-                const compDef = components.find(c => c.id === comp.type);
-                const simData = simulationResults[id];
-                const caudal = simData?.caudal_agua_m3h;
-                
-                if (!caudal || caudal <= 0) continue;
+            // 3. Reset all temporary states
+            draggingComponent = null; 
+            connectingFrom = null; 
+            mouse.down = false; 
+            mouse.dragMoved = false;
+            panning.active = false;
+            draw();
+        });
 
-                if (compDef.category === 'Produção') {
-                    let temp_out, dt, isChiller = false;
-                    switch (comp.type) {
-                         case 'boiler_condensing': case 'boiler_conventional': case 'emitter_load':
-                            temp_out = comp.params.temperatura_saida_c;
-                            dt = comp.params.diferencial_temperatura_dt;
-                            break;
-                        case 'hp_air': case 'chiller_air':
-                            temp_out = comp.params.temperatura_saida_c;
-                            dt = comp.params.diferencial_temperatura_dt;
-                            isChiller = comp.type.includes('chiller');
-                            break;
-                        case 'hp_water':
-                            temp_out = comp.params.temp_sai_carga_c;
-                            dt = comp.params.dt_carga_c;
-                            break;
-                        case 'chiller_water':
-                            temp_out = comp.params.temp_sai_evap_c;
-                            dt = comp.params.dt_evap_c;
-                            isChiller = true;
-                            break;
-                    }
-
-                    if (dt > 0 && temp_out !== undefined && !isNaN(dt) && !isNaN(temp_out)) {
-                        const potencia = caudal * dt * 1.163;
-                        const temp_in = isChiller ? parseFloat(temp_out) + parseFloat(dt) : parseFloat(temp_out) - parseFloat(dt);
-                        
-                        if (comp.type === 'hp_water') {
-                            Object.assign(simData, { capacidade_util_kw: potencia.toFixed(2), temp_ent_carga_c: temp_in.toFixed(1) });
-                        } else if (comp.type === 'chiller_water') {
-                            Object.assign(simData, { capacidade_evap_kw: potencia.toFixed(2), temp_ent_evap_c: temp_in.toFixed(1) });
-                        } else if (comp.type === 'hp_air' || comp.type === 'chiller_air') {
-                            Object.assign(simData, { capacidade_kw: potencia.toFixed(2), temperatura_entrada_c: temp_in.toFixed(1) });
-                        } else {
-                            Object.assign(simData, { potencia_kw: potencia.toFixed(2), temperatura_entrada_c: temp_in.toFixed(1) });
-                        }
-                    }
-                } else if (compDef.category === 'Consumo') {
-                    const potencia = comp.type === 'radiant_floor' 
-                        ? (comp.params.area_m2 * comp.params.potencia_w_m2) / 1000 
-                        : comp.params.potencia_kw;
-                    
-                    const temp_in = comp.params.temperatura_entrada_c;
-                    const isCoolingLoad = ['ahu_load', 'fancoil'].includes(comp.type);
-
-                    if (potencia && temp_in !== undefined && !isNaN(potencia) && !isNaN(temp_in)) {
-                        const actual_dt = potencia / (caudal * 1.163);
-                        const temp_out = isCoolingLoad ? parseFloat(temp_in) + actual_dt : parseFloat(temp_in) - actual_dt;
-
-                        Object.assign(simData, {
-                            temperatura_saida_c: temp_out.toFixed(1),
-                            diferencial_temperatura_dt: actual_dt.toFixed(1)
-                        });
-                    }
-                }
+        canvas.addEventListener('dblclick', (e) => {
+            const worldPos = screenToWorld(e.clientX - e.target.getBoundingClientRect().left, e.clientY - e.target.getBoundingClientRect().top);
+            const mx = worldPos.x; const my = worldPos.y;
+            const clickedComp = components.find(c => mx > c.x && mx < c.x + COMPONENT_WIDTH && my > c.y && my < c.y + COMPONENT_HEIGHT);
+            if (clickedComp) {
+                const template = componentTemplates[clickedComp.type];
+                if (template.inputs.length > 0 && template.outputs.length > 0) { clickedComp.flipped = !clickedComp.flipped; draw(); }
             }
+        });
 
-            // Pass 6: Propagate temperatures
-            for (let i=0; i < 50; i++) {
-                let changed = false;
-                for (const [pipeId, pipe] of Object.entries(connections)) {
-                    if (!simulationResults[pipeId]) simulationResults[pipeId] = {};
-                    if(simulationResults[pipeId].temperatura_c === undefined) {
-                        const fromComp = placedComponents[pipe.from.componentId];
-                        const fromCompSim = simulationResults[pipe.from.componentId];
-                        
-                        if (fromComp && fromCompSim) {
-                            const fromCompDef = components.find(c => c.id === fromComp.type);
-                            const fromConnector = fromCompDef.connectors[pipe.from.connectorIndex];
-                            
-                            let tempOut;
-                            if (fromConnector.type.includes('out_evap') || fromConnector.type.includes('out_p')) tempOut = fromComp.params.temp_sai_evap_c || fromComp.params.temp_sai_primario_c;
-                            else if(fromConnector.type.includes('out_cond')) tempOut = fromComp.params.temp_sai_cond_c;
-                            else if (fromConnector.type.includes('out_s')) tempOut = fromComp.params.temp_sai_secundario_c;
-                            else tempOut = fromComp.params.temperatura_saida_c;
-
-                            if(tempOut !== undefined && tempOut !== 'Auto') {
-                                simulationResults[pipeId].temperatura_c = tempOut;
-                                changed = true;
-                            }
-                        }
-                    }
-                }
-                 for (const [id, comp] of Object.entries(placedComponents)) {
-                     const compDef = components.find(c => c.id === comp.type);
-                     if(compDef.category === 'Consumo') {
-                        const inPipe = Object.values(connections).find(c => c.to.componentId === id);
-                        if (inPipe && simulationResults[inPipe.line.dataset.connId]?.temperatura_c !== undefined) {
-                            const inTemp = simulationResults[inPipe.line.dataset.connId].temperatura_c;
-                            if (simulationResults[id].temperatura_entrada_c !== inTemp) {
-                                simulationResults[id].temperatura_entrada_c = inTemp;
-                                changed = true;
-                            }
-                        }
-                     }
-                 }
-                if (!changed) break;
-            }
-        }
-
-        function findCircuit(startComponentId) {
-            const circuit = { components: new Set(), pipes: new Set() };
-            const queue = [startComponentId];
-            const visitedInCircuit = new Set([startComponentId]);
-            circuit.components.add(startComponentId);
-
-            while (queue.length > 0) {
-                const currentCompId = queue.shift();
-                for (const [pipeId, conn] of Object.entries(connections)) {
-                    if (visitedInCircuit.has(pipeId)) continue;
-                    let nextCompId = null;
-                    if (conn.from.componentId === currentCompId) nextCompId = conn.to.componentId;
-                    else if (conn.to.componentId === currentCompId) nextCompId = conn.from.componentId;
-
-                    if (nextCompId) {
-                        circuit.pipes.add(pipeId);
-                        visitedInCircuit.add(pipeId);
-                        if (!visitedInCircuit.has(nextCompId)) {
-                            circuit.components.add(nextCompId);
-                            visitedInCircuit.add(nextCompId);
-                            queue.push(nextCompId);
-                        }
-                    }
-                }
-            }
-            return circuit;
-        }
-
-        function updateSimulationView() {
-            document.querySelectorAll('.sim-label').forEach(el => el.remove());
-            if (!isSimulating) return;
-
-            // Display labels for components
-            for (const id in placedComponents) {
-                const comp = placedComponents[id];
-                const elem = document.getElementById(id);
-                const label = document.createElement('div');
-                label.className = 'sim-label';
-                
-                const simData = simulationResults[id] || {};
-                const compDef = components.find(c => c.id === comp.type);
-                
-                const flow = simData.caudal_agua_m3h ?? 'Auto';
-                let content = `Q: ${flow} m³/h<br>`;
-                
-                let tempIn = 'N/A', tempOut = 'N/A', potencia = 'N/A';
-
-                if (compDef.category === 'Produção') {
-                    tempIn = simData.temperatura_entrada_c ?? simData.temp_ent_evap_c ?? simData.temp_ent_carga_c ?? 'Auto';
-                    tempOut = comp.params.temperatura_saida_c ?? comp.params.temp_sai_evap_c ?? comp.params.temp_sai_carga_c ?? 'N/A';
-                    potencia = simData.potencia_kw ?? simData.capacidade_kw ?? simData.capacidade_util_kw ?? simData.capacidade_evap_kw ?? 'Auto';
-                    content += `P: ${potencia} kW<br>`;
-                } else if (compDef.category === 'Consumo') {
-                    tempIn = simData.temperatura_entrada_c ?? 'Auto';
-                    tempOut = simData.temperatura_saida_c ?? 'Auto';
-                }
-
-                if (tempIn !== 'N/A' && tempOut !== 'N/A') {
-                     content += `T: ${tempIn}°C / ${tempOut}°C`;
-                }
-
-                label.innerHTML = content;
-                const elemRect = elem.getBoundingClientRect();
-
-                label.style.left = `${elem.offsetLeft}px`;
-                label.style.top = `${elem.offsetTop + elemRect.height - 10}px`;
-                canvas.appendChild(label);
-            }
-
-            // Display labels for pipes
-            for (const id in connections) {
-                const conn = connections[id];
-                const label = document.createElement('div');
-                label.className = 'sim-label';
-                
-                const simFlow = simulationResults[id]?.caudal_m3h;
-                const flow = simFlow ?? conn.params.caudal_m3h;
-                const temp = simulationResults[id]?.temperatura_c ?? 'Auto';
-
-                label.innerHTML = `Q: ${flow} m³/h<br>T: ${temp}°C`;
-                
-                const p1 = conn.points[0];
-                const p2 = conn.points.length > 1 ? conn.points[1] : p1;
-                const midX = (p1.x + p2.x) / 2;
-                const midY = (p1.y + p2.y) / 2;
-
-                label.style.left = `${midX}px`;
-                label.style.top = `${midY}px`;
-                canvas.appendChild(label);
-            }
-        }
-
-        simulateBtn.addEventListener('click', toggleSimulation);
-
-        // --- Helper Math Functions ---
-        function pointToSegmentDistance(p, a, b) {
-            const l2 = (a.x - b.x)**2 + (a.y - b.y)**2;
-            if (l2 === 0) return Math.hypot(p.x - a.x, p.y - a.y);
-            let t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / l2;
-            t = Math.max(0, Math.min(1, t));
-            const projection = { x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y) };
-            return Math.hypot(p.x - projection.x, p.y - projection.y);
-        }
-
+        setupCanvas();
+        populateLibrary();
+        draw();
     </script>
 </body>
 </html>

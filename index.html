@@ -81,20 +81,30 @@
 <body class="bg-gray-100 text-gray-800 flex flex-col h-screen overflow-hidden">
 
     <!-- Header -->
-    <header class="bg-white shadow-md p-4 flex justify-between items-center z-20 flex-wrap">
+    <header class="bg-white shadow-md p-4 flex justify-between items-center z-20 flex-wrap gap-y-2">
         <h1 class="text-2xl font-bold text-gray-700 mr-6">Simulador de Central Térmica</h1>
         <div class="flex items-center space-x-2 bg-gray-100 p-2 rounded-lg">
-            <div class="text-center">
+            <div class="text-center px-2">
                 <div class="text-xs font-semibold text-gray-500">ENERGIA TÉRMICA</div>
                 <div id="totalTermicaDisplay" class="text-lg font-bold text-blue-600">0.0 kWh</div>
             </div>
-            <div class="border-l h-8 mx-3"></div>
-            <div class="text-center">
+            <div class="border-l h-8"></div>
+            <div class="text-center px-2">
                 <div class="text-xs font-semibold text-gray-500">CONSUMO ELÉTRICO</div>
                 <div id="totalEletricoDisplay" class="text-lg font-bold text-green-600">0.0 kWh</div>
             </div>
+            <div class="border-l h-8"></div>
+            <div class="text-center px-2">
+                <div class="text-xs font-semibold text-gray-500">GÁS NATURAL</div>
+                <div id="totalGasNaturalDisplay" class="text-lg font-bold text-yellow-600">0.0 kWh</div>
+            </div>
+            <div class="border-l h-8"></div>
+            <div class="text-center px-2">
+                <div class="text-xs font-semibold text-gray-500">PROPANO</div>
+                <div id="totalPropanoDisplay" class="text-lg font-bold text-gray-600">0.0 kWh</div>
+            </div>
         </div>
-        <div class="flex items-center space-x-2 mt-2 sm:mt-0">
+        <div class="flex items-center space-x-2 mt-2 sm:mt-0 flex-wrap">
              <div class="flex items-center space-x-2">
                 <label for="tempExterior" class="text-sm font-medium text-gray-700">Temp. Ext. (°C):</label>
                 <input type="number" id="tempExterior" value="10" class="w-20 p-1 border border-gray-300 rounded-md shadow-sm sm:text-sm">
@@ -106,15 +116,19 @@
                  <button id="startDynamicBtn" class="bg-teal-500 text-white font-semibold px-4 py-1 rounded-lg shadow hover:bg-teal-600 transition duration-300">Sim. Dinâmica</button>
                  <button id="pauseDynamicBtn" class="hidden bg-orange-500 text-white font-semibold px-4 py-1 rounded-lg shadow hover:bg-orange-600 transition duration-300">Parar</button>
                  <div id="dynamicTimeDisplay" class="text-sm font-mono text-gray-700 px-2 w-48 text-center">Hora: 0 H</div>
-                 <div id="speed-selector" class="flex items-center space-x-1 border-l pl-2 ml-2">
-                    <button data-speed="1000" class="speed-btn speed-btn-active">1×</button>
-                    <button data-speed="100" class="speed-btn speed-btn-inactive">10×</button>
-                    <button data-speed="10" class="speed-btn speed-btn-inactive">100×</button>
-                    <button data-speed="2" class="speed-btn speed-btn-inactive">500×</button>
-                    <button data-speed="1" class="speed-btn speed-btn-inactive">1000×</button>
+                 <div class="flex items-center border-l pl-2 ml-2">
+                    <span class="text-xs font-medium text-gray-600 mr-2">Velocidade:</span>
+                    <div id="speed-selector" class="flex items-center space-x-1">
+                        <button data-speed="1000" class="speed-btn speed-btn-active">1×</button>
+                        <button data-speed="100" class="speed-btn speed-btn-inactive">10×</button>
+                        <button data-speed="10" class="speed-btn speed-btn-inactive">100×</button>
+                        <button data-speed="2" class="speed-btn speed-btn-inactive">500×</button>
+                        <button data-speed="1" class="speed-btn speed-btn-inactive">1000×</button>
+                    </div>
                  </div>
             </div>
-            <button id="clearBtn" class="bg-red-500 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-red-600 transition duration-300">Limpar</button>
+            <button id="clearResultsBtn" class="bg-yellow-500 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-yellow-600 transition duration-300">Limpar Resultados</button>
+            <button id="clearBtn" class="bg-red-500 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-red-600 transition duration-300">Limpar Área de Trabalho</button>
         </div>
     </header>
 
@@ -146,7 +160,7 @@
 
     <!-- Data Table Modal -->
     <div id="table-modal" class="hidden fixed inset-0 z-30 flex items-center justify-center p-4">
-        <div class="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-6xl max-h-[80vh] flex flex-col">
             <header class="p-4 border-b flex justify-between items-center">
                 <h2 class="text-xl font-bold text-gray-700">Tabela de Equipamentos e Dados</h2>
                 <button id="close-table-modal-btn" class="text-gray-400 hover:text-gray-600 text-2xl font-bold">&times;</button>
@@ -195,10 +209,10 @@
 
         // --- DEFINIÇÃO DOS COMPONENTES ---
         const componentTemplates = {
-            'Caldeira': { category: 'Produção', color: '#22c55e', params: { potencia: 100000, tempSaida: 80, rendimento: 0.9, potEletrica: 200 }, inputs: ['entrada'], outputs: ['saida'] },
+            'Caldeira': { category: 'Produção', color: '#22c55e', params: { potencia: 100000, tempSaida: 80, rendimento: 0.9, potEletrica: 200, fuelType: 'Gás Natural' }, inputs: ['entrada'], outputs: ['saida'] },
             'Bomba de Calor': { category: 'Produção', color: '#16a34a', params: { potencia: 25000, COP: 4.0 }, inputs: ['entrada'], outputs: ['saida'] },
             'Chiller': { category: 'Produção', color: '#0ea5e9', params: { potencia: 50000, EER: 3.5 }, inputs: ['entrada'], outputs: ['saida'] },
-            'Consumidor Genérico': { category: 'Produção', color: '#f43f5e', params: { potencia: 10000, cargaVariavel: false, perfilDiario: '', perfilAnual: '' }, inputs: ['entrada'], outputs: ['saida'] },
+            'Produtor Genérico': { category: 'Produção', color: '#f43f5e', params: { potencia: 10000, cargaVariavel: false, perfilDiario: '', perfilAnual: '', energySource: 'Eletricidade' }, inputs: ['entrada'], outputs: ['saida'] },
             'Bomba': { category: 'Impulsão', color: '#3b82f6', params: { caudal: 2.0, potEletrica: 500 }, inputs: ['entrada'], outputs: ['saida'] },
             'Tubo': { category: 'Distribuição', color: '#64748b', params: { comprimento: 10, perdaTermica: 0.5 /* W/m.K */ }, inputs: ['entrada'], outputs: ['saida'] },
             'Depósito de Inércia': { category: 'Distribuição', color: '#a855f7', params: { volume: 500 }, inputs: ['entrada'], outputs: ['saida'] },
@@ -218,8 +232,9 @@
         let steadyResultsAvailable = false;
         let dynamicSimState = { 
             running: false, intervalId: null, hour: 0, speed: 1000, 
-            totalTermica: 0, totalEletrica: 0,
-            monthlyThermal: Array(12).fill(0), monthlyElectric: Array(12).fill(0)
+            totalTermica: 0, totalEletrica: 0, totalGasNatural: 0, totalPropano: 0,
+            monthlyThermal: Array(12).fill(0), monthlyElectric: Array(12).fill(0),
+            monthlyGasNatural: Array(12).fill(0), monthlyPropano: Array(12).fill(0)
         };
         let viewTransform = { scale: 1, offsetX: 0, offsetY: 0 };
         let panning = { active: false, startX: 0, startY: 0 };
@@ -235,6 +250,7 @@
         const showTableBtn = document.getElementById('showTableBtn');
         const showChartBtn = document.getElementById('showChartBtn');
         const clearBtn = document.getElementById('clearBtn');
+        const clearResultsBtn = document.getElementById('clearResultsBtn');
         const messageBox = document.getElementById('message-box'); const messageText = document.getElementById('message-text');
         const tableModal = document.getElementById('table-modal');
         const closeTableModalBtn = document.getElementById('close-table-modal-btn');
@@ -248,6 +264,8 @@
         const speedSelector = document.getElementById('speed-selector');
         const totalTermicaDisplay = document.getElementById('totalTermicaDisplay');
         const totalEletricoDisplay = document.getElementById('totalEletricoDisplay');
+        const totalGasNaturalDisplay = document.getElementById('totalGasNaturalDisplay');
+        const totalPropanoDisplay = document.getElementById('totalPropanoDisplay');
         
         // --- HELPERS (TRANSFORMAÇÃO E GRELHA) ---
         function screenToWorld(x, y) {
@@ -433,10 +451,29 @@
             propertiesPanel.classList.remove('w-0', 'p-0');
             propertiesPanel.classList.add('w-96', 'p-4'); // Wider panel
             let content = `<h3 class="text-lg font-bold text-gray-700 mb-4 border-b pb-2">${comp.type}</h3><div class="space-y-4">`;
+            
             for (const key in comp.params) {
-                if (['cargaVariavel', 'perfilDiario', 'perfilAnual', 'perfilArray'].includes(key)) continue;
+                if (['cargaVariavel', 'perfilDiario', 'perfilAnual', 'perfilArray', 'fuelType', 'energySource'].includes(key)) continue;
                 content += `<div><label for="param-${key}" class="block text-sm font-medium text-gray-700 capitalize">${key}</label><input type="number" id="param-${key}" value="${comp.params[key]}" class="param-input mt-1"></div>`;
             }
+
+            if(comp.type === 'Caldeira') {
+                content += `<div><label for="param-fuelType" class="block text-sm font-medium text-gray-700">Combustível</label>
+                <select id="param-fuelType" class="param-input mt-1">
+                    <option value="Gás Natural" ${comp.params.fuelType === 'Gás Natural' ? 'selected' : ''}>Gás Natural</option>
+                    <option value="Propano" ${comp.params.fuelType === 'Propano' ? 'selected' : ''}>Propano</option>
+                </select></div>`;
+            }
+
+            if(comp.type === 'Produtor Genérico') {
+                 content += `<div><label for="param-energySource" class="block text-sm font-medium text-gray-700">Fonte de Energia</label>
+                <select id="param-energySource" class="param-input mt-1">
+                    <option value="Eletricidade" ${comp.params.energySource === 'Eletricidade' ? 'selected' : ''}>Eletricidade</option>
+                    <option value="Gás Natural" ${comp.params.energySource === 'Gás Natural' ? 'selected' : ''}>Gás Natural</option>
+                    <option value="Propano" ${comp.params.energySource === 'Propano' ? 'selected' : ''}>Propano</option>
+                </select></div>`;
+            }
+
             content += '</div>';
 
             if (comp.params.hasOwnProperty('cargaVariavel')) {
@@ -501,7 +538,13 @@
             for (const key in comp.params) {
                 const input = document.getElementById(`param-${key}`);
                 if (['cargaVariavel', 'perfilDiario', 'perfilAnual', 'perfilArray'].includes(key)) continue;
-                if(input) comp.params[key] = parseFloat(input.value) || 0;
+                if (input) {
+                    if (input.tagName === 'SELECT') {
+                        comp.params[key] = input.value;
+                    } else {
+                        comp.params[key] = parseFloat(input.value) || 0;
+                    }
+                }
             }
 
             if (comp.params.hasOwnProperty('cargaVariavel')) {
@@ -552,19 +595,19 @@
         function showDataTable() {
             const container = document.getElementById('data-table-container');
             let tableHTML = `<table><thead><tr>
-                <th>ID</th><th>Tipo</th><th>Parâmetros</th><th>Caudal (kg/s)</th><th>Temp. Saída (°C)</th><th>Potência (kW)</th>
+                <th>ID</th><th>Tipo</th><th>Potência (kW)</th>
+                <th>Eletricidade (kWh)</th><th>Gás Natural (kWh)</th><th>Propano (kWh)</th>
             </tr></thead><tbody>`;
 
             components.forEach(comp => {
-                const params = Object.entries(comp.params).filter(([k]) => !['perfilDiario', 'perfilAnual', 'perfilArray'].includes(k)).map(([k, v]) => `${k}: ${v}`).join('<br>');
                 const res = comp.results;
                 tableHTML += `<tr>
                     <td>${comp.id}</td>
                     <td class="font-bold">${comp.type}</td>
-                    <td>${params}</td>
-                    <td>${res.caudal !== null ? res.caudal.toFixed(2) : '--'}</td>
-                    <td>${res.tempSaida !== null ? res.tempSaida.toFixed(1) : '--'}</td>
                     <td>${res.potencia !== null ? (res.potencia / 1000).toFixed(1) : '--'}</td>
+                    <td>${res.consumoEletrico !== null ? (res.consumoEletrico / 1000).toFixed(2) : '0.00'}</td>
+                    <td>${res.consumoGasNatural !== null ? (res.consumoGasNatural / 1000).toFixed(2) : '0.00'}</td>
+                    <td>${res.consumoPropano !== null ? (res.consumoPropano / 1000).toFixed(2) : '0.00'}</td>
                 </tr>`;
             });
             tableHTML += '</tbody></table>';
@@ -618,7 +661,10 @@
 
         function runSteadyStateCalculation() {
             steadyResultsAvailable = false;
-            components.forEach(c => c.results = { caudal: null, tempEntrada: null, tempSaida: null, potencia: null });
+            components.forEach(c => c.results = { 
+                caudal: null, tempEntrada: null, tempSaida: null, potencia: null,
+                consumoEletrico: 0, consumoGasNatural: 0, consumoPropano: 0 
+            });
             
             const tempExterior = parseFloat(document.getElementById('tempExterior').value) || 10;
             const producer = components.find(c => componentTemplates[c.type].category === 'Produção');
@@ -647,35 +693,53 @@
                     
                     switch (comp.type) {
                         case 'Caldeira': comp.results.tempSaida = comp.params.tempSaida; break;
-                        case 'Bomba de Calor':
+                        case 'Bomba de Calor': {
                             const effectiveCOP = comp.params.COP - (7 - tempExterior) * 0.05;
                             const potHP = comp.params.potencia * (effectiveCOP > 1 ? effectiveCOP : 1);
                             comp.results.tempSaida = currentTemp + (potHP / (caudal * SPECIFIC_HEAT_WATER));
                             comp.results.potencia = potHP;
+                            if (potHP > 0 && effectiveCOP > 0) comp.results.consumoEletrico = potHP / effectiveCOP;
                             break;
-                        case 'Chiller':
+                        }
+                        case 'Chiller': {
                             const efficiencyFactor = Math.max(0.1, 1 - (tempExterior - 35) * 0.03);
                             const effectiveCoolingPower = comp.params.potencia * efficiencyFactor;
                             comp.results.tempSaida = currentTemp - (effectiveCoolingPower / (caudal * SPECIFIC_HEAT_WATER));
                             comp.results.potencia = -effectiveCoolingPower;
+                            const effectiveEER = comp.params.EER * efficiencyFactor;
+                            if (effectiveCoolingPower > 0 && effectiveEER > 0) comp.results.consumoEletrico = effectiveCoolingPower / effectiveEER;
                             break;
-                        case 'Bomba': comp.results.tempSaida = currentTemp; comp.results.potencia = 0; break;
-                        case 'Tubo':
+                        }
+                        case 'Produtor Genérico': {
+                            let potenciaConsumo = comp.params.potencia;
+                             if (dynamicSimState.running && comp.params.cargaVariavel && comp.params.perfilArray?.length === 8760) {
+                                potenciaConsumo = comp.params.perfilArray[dynamicSimState.hour - 1] || 0;
+                            }
+                            comp.results.tempSaida = currentTemp + (potenciaConsumo / (caudal * SPECIFIC_HEAT_WATER));
+                            comp.results.potencia = potenciaConsumo;
+                            if (comp.params.energySource === 'Eletricidade') comp.results.consumoEletrico = potenciaConsumo;
+                            else if (comp.params.energySource === 'Gás Natural') comp.results.consumoGasNatural = potenciaConsumo;
+                            else if (comp.params.energySource === 'Propano') comp.results.consumoPropano = potenciaConsumo;
+                            break;
+                        }
+                        case 'Bomba': comp.results.tempSaida = currentTemp; comp.results.potencia = 0; comp.results.consumoEletrico = comp.params.potEletrica; break;
+                        case 'Tubo': {
                             const deltaT_tubo = currentTemp - tempExterior;
                             const perdaTubo = comp.params.comprimento * comp.params.perdaTermica * deltaT_tubo;
                             comp.results.tempSaida = currentTemp - (perdaTubo / (caudal * SPECIFIC_HEAT_WATER));
                             comp.results.potencia = -perdaTubo;
                             break;
+                        }
                         case 'Válvula de Regulação': comp.results.tempSaida = currentTemp; comp.results.potencia = 0; break;
-                        case 'Radiador': case 'Unidade de Tratamento de Ar': case 'Carga Genérica': case 'Consumidor Genérico': case 'Permutador de Placas':
+                        case 'Radiador': case 'Unidade de Tratamento de Ar': case 'Carga Genérica': case 'Permutador de Placas': {
                             let potenciaConsumo = comp.params.potencia;
-                            if (dynamicSimState.running && comp.params.cargaVariavel && comp.params.perfilArray && comp.params.perfilArray.length === 8760) {
-                                const horaDoAno = (dynamicSimState.hour - 1);
-                                potenciaConsumo = comp.params.perfilArray[horaDoAno] || 0;
+                            if (dynamicSimState.running && comp.params.cargaVariavel && comp.params.perfilArray?.length === 8760) {
+                                potenciaConsumo = comp.params.perfilArray[dynamicSimState.hour - 1] || 0;
                             }
                             comp.results.tempSaida = currentTemp - (potenciaConsumo / (caudal * SPECIFIC_HEAT_WATER));
                             comp.results.potencia = -potenciaConsumo; 
                             break;
+                        }
                         case 'Acumulador': case 'Depósito de Inércia': case 'Coletor':
                             comp.results.tempSaida = currentTemp; comp.results.potencia = 0; break;
                     }
@@ -686,7 +750,11 @@
 
              if (loopConnection && producer.type === 'Caldeira') {
                 const potNec = caudal * SPECIFIC_HEAT_WATER * (producer.params.tempSaida - tempRetorno);
-                producer.results.potencia = potNec > 0 ? potNec / producer.params.rendimento : 0;
+                producer.results.potencia = potNec > 0 ? potNec : 0;
+                producer.results.consumoEletrico = producer.params.potEletrica;
+                const fuelConsumption = potNec > 0 ? potNec / producer.params.rendimento : 0;
+                if (producer.params.fuelType === 'Gás Natural') producer.results.consumoGasNatural = fuelConsumption;
+                else if (producer.params.fuelType === 'Propano') producer.results.consumoPropano = fuelConsumption;
              }
 
             steadyResultsAvailable = true;
@@ -700,62 +768,68 @@
                 return;
             }
             if (dynamicSimState.running) return;
-            dynamicSimState.running = true;
+
+            if (dynamicSimState.hour >= 8760) {
+                resetDynamicSimulation(true);
+            }
             
+            dynamicSimState.running = true;
             startDynamicBtn.classList.add('hidden');
             pauseDynamicBtn.classList.remove('hidden');
             
-            if (dynamicSimState.hour === 0) {
-                 resetDynamicSimulation(false); // Reset counters but not UI
-            }
-
-            components.forEach(c => {
-                if(['Acumulador', 'Depósito de Inércia'].includes(c.type)) {
-                    if(!c.state) c.state = { temp: 20.0 };
-                }
-            });
-
+            if (dynamicSimState.intervalId) clearInterval(dynamicSimState.intervalId);
             dynamicSimState.intervalId = setInterval(dynamicStep, dynamicSimState.speed);
         }
         
         function pauseDynamicSimulation() {
             if (!dynamicSimState.running) return;
             dynamicSimState.running = false;
-            clearInterval(dynamicSimState.intervalId);
-            dynamicSimState.intervalId = null;
+            
+            if (dynamicSimState.intervalId) {
+                clearInterval(dynamicSimState.intervalId);
+                dynamicSimState.intervalId = null;
+            }
+
             pauseDynamicBtn.classList.add('hidden');
             startDynamicBtn.classList.remove('hidden');
             startDynamicBtn.textContent = 'Continuar';
         }
 
         function resetDynamicSimulation(clearUI = true) {
-            if(dynamicSimState.intervalId) clearInterval(dynamicSimState.intervalId);
-            dynamicSimState.running = false;
-            dynamicSimState.intervalId = null;
+            pauseDynamicSimulation();
+
             dynamicSimState.hour = 0;
             dynamicSimState.totalTermica = 0;
             dynamicSimState.totalEletrica = 0;
-            dynamicSimState.monthlyThermal = Array(12).fill(0);
-            dynamicSimState.monthlyElectric = Array(12).fill(0);
+            dynamicSimState.totalGasNatural = 0;
+            dynamicSimState.totalPropano = 0;
+            dynamicSimState.monthlyThermal.fill(0);
+            dynamicSimState.monthlyElectric.fill(0);
+            dynamicSimState.monthlyGasNatural.fill(0);
+            dynamicSimState.monthlyPropano.fill(0);
 
             if(clearUI) {
                 dynamicTimeDisplay.textContent = `Hora: 0 H`;
                 totalTermicaDisplay.textContent = `0.0 kWh`;
                 totalEletricoDisplay.textContent = `0.0 kWh`;
-                pauseDynamicBtn.classList.add('hidden');
-                startDynamicBtn.classList.remove('hidden');
+                totalGasNaturalDisplay.textContent = `0.0 kWh`;
+                totalPropanoDisplay.textContent = `0.0 kWh`;
                 startDynamicBtn.textContent = 'Sim. Dinâmica';
             }
             if (chartInstance) updateChart();
         }
 
         function dynamicStep() {
+            if (!dynamicSimState.running) return;
+
             dynamicSimState.hour++;
             if (dynamicSimState.hour > 8760) {
-                resetDynamicSimulation();
+                dynamicTimeDisplay.textContent = `Fim (8760 H)`;
+                pauseDynamicSimulation();
                 showMessage("Simulação dinâmica de 1 ano concluída.");
                 return;
             }
+
             const dateString = getDateFromHour(dynamicSimState.hour);
             dynamicTimeDisplay.textContent = `Hora: ${dynamicSimState.hour} (${dateString})`;
             
@@ -763,41 +837,36 @@
 
             let consumoTermicoHora = 0;
             let consumoEletricoHora = 0;
+            let consumoGasNaturalHora = 0;
+            let consumoPropanoHora = 0;
 
             components.forEach(comp => {
                 const potTermica = Math.abs(comp.results.potencia || 0);
-                const tempExterior = parseFloat(document.getElementById('tempExterior').value) || 10;
-                
-                if (componentTemplates[comp.type].category === 'Consumo' || (comp.type === 'Consumidor Genérico')) {
+                if (componentTemplates[comp.type].category === 'Consumo') {
                     consumoTermicoHora += potTermica;
                 }
-                
-                switch(comp.type) {
-                    case 'Bomba de Calor':
-                        const effectiveCOP = comp.params.COP - (7 - tempExterior) * 0.05;
-                        if (potTermica > 0 && effectiveCOP > 0) consumoEletricoHora += potTermica / effectiveCOP;
-                        break;
-                    case 'Chiller':
-                        const effectiveEER = comp.params.EER * (Math.max(0.1, 1 - (tempExterior - 35) * 0.03));
-                         if (potTermica > 0 && effectiveEER > 0) consumoEletricoHora += potTermica / effectiveEER;
-                        break;
-                    case 'Bomba': case 'Caldeira':
-                        consumoEletricoHora += comp.params.potEletrica || 0;
-                        break;
-                }
+                consumoEletricoHora += comp.results.consumoEletrico || 0;
+                consumoGasNaturalHora += comp.results.consumoGasNatural || 0;
+                consumoPropanoHora += comp.results.consumoPropano || 0;
             });
             
             dynamicSimState.totalTermica += consumoTermicoHora;
             dynamicSimState.totalEletrica += consumoEletricoHora;
+            dynamicSimState.totalGasNatural += consumoGasNaturalHora;
+            dynamicSimState.totalPropano += consumoPropanoHora;
 
             const date = new Date(2024, 0, 1);
             date.setHours(date.getHours() + dynamicSimState.hour - 1);
             const monthIndex = date.getMonth();
             dynamicSimState.monthlyThermal[monthIndex] += consumoTermicoHora;
             dynamicSimState.monthlyElectric[monthIndex] += consumoEletricoHora;
+            dynamicSimState.monthlyGasNatural[monthIndex] += consumoGasNaturalHora;
+            dynamicSimState.monthlyPropano[monthIndex] += consumoPropanoHora;
 
             totalTermicaDisplay.textContent = `${(dynamicSimState.totalTermica / 1000).toFixed(1)} kWh`;
             totalEletricoDisplay.textContent = `${(dynamicSimState.totalEletrica / 1000).toFixed(1)} kWh`;
+            totalGasNaturalDisplay.textContent = `${(dynamicSimState.totalGasNatural / 1000).toFixed(1)} kWh`;
+            totalPropanoDisplay.textContent = `${(dynamicSimState.totalPropano / 1000).toFixed(1)} kWh`;
             
             if (chartInstance && !chartModal.classList.contains('hidden')) updateChart();
 
@@ -849,7 +918,9 @@
             if (!chartInstance) return;
             chartInstance.data.datasets[0].data = dynamicSimState.monthlyThermal.map(v => v / 1000);
             chartInstance.data.datasets[1].data = dynamicSimState.monthlyElectric.map(v => v / 1000);
-            chartInstance.update('none'); // 'none' for smoother updates
+            chartInstance.data.datasets[2].data = dynamicSimState.monthlyGasNatural.map(v => v / 1000);
+            chartInstance.data.datasets[3].data = dynamicSimState.monthlyPropano.map(v => v / 1000);
+            chartInstance.update('none');
         }
         function renderChart() {
             if (chartInstance) {
@@ -861,24 +932,15 @@
                 data: {
                     labels: monthLabels,
                     datasets: [
-                        {
-                            label: 'Energia Térmica Acumulada (kWh)',
-                            data: dynamicSimState.monthlyThermal.map(v => v / 1000),
-                            backgroundColor: 'rgba(59, 130, 246, 0.7)', // blue-500
-                        },
-                        {
-                            label: 'Consumo Elétrico Acumulado (kWh)',
-                            data: dynamicSimState.monthlyElectric.map(v => v / 1000),
-                            backgroundColor: 'rgba(22, 163, 74, 0.7)', // green-600
-                        }
+                        { label: 'Energia Térmica (kWh)', data: dynamicSimState.monthlyThermal.map(v => v / 1000), backgroundColor: 'rgba(59, 130, 246, 0.7)'}, // blue-500
+                        { label: 'Consumo Elétrico (kWh)', data: dynamicSimState.monthlyElectric.map(v => v / 1000), backgroundColor: 'rgba(22, 163, 74, 0.7)'}, // green-600
+                        { label: 'Gás Natural (kWh)', data: dynamicSimState.monthlyGasNatural.map(v => v / 1000), backgroundColor: 'rgba(245, 158, 11, 0.7)'}, // amber-500
+                        { label: 'Propano (kWh)', data: dynamicSimState.monthlyPropano.map(v => v / 1000), backgroundColor: 'rgba(107, 114, 128, 0.7)'} // gray-500
                     ]
                 },
                 options: {
-                    scales: {
-                        y: { beginAtZero: true, title: { display: true, text: 'Energia (kWh)' } }
-                    },
-                    responsive: true,
-                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, stacked: true, title: { display: true, text: 'Energia (kWh)' } }, x: { stacked: true } },
+                    responsive: true, maintainAspectRatio: false,
                 }
             });
         }
@@ -914,19 +976,23 @@
         showChartBtn.addEventListener('click', showChartModal);
         closeChartModalBtn.addEventListener('click', hideChartModal);
         closeValidationModalBtn.addEventListener('click', () => validationModal.classList.add('hidden'));
-        clearBtn.addEventListener('click', () => clearWorkspace(true));
+        clearBtn.addEventListener('click', clearWorkspace);
+        clearResultsBtn.addEventListener('click', () => resetDynamicSimulation(true));
         
         speedSelector.addEventListener('click', (e) => {
             if(e.target.tagName === 'BUTTON') {
                 const newSpeed = parseInt(e.target.dataset.speed, 10);
                 dynamicSimState.speed = newSpeed;
+
                 speedSelector.querySelectorAll('button').forEach(btn => {
                     btn.classList.remove('speed-btn-active'); btn.classList.add('speed-btn-inactive');
                 });
-                e.target.classList.add('speed-btn-active'); e.target.classList.remove('speed-btn-inactive');
+                e.target.classList.add('speed-btn-active');
+                e.target.classList.remove('speed-btn-inactive');
+                
                 if (dynamicSimState.running) {
-                    clearInterval(dynamicSimState.intervalId);
-                    dynamicSimState.intervalId = setInterval(dynamicStep, newSpeed);
+                    if (dynamicSimState.intervalId) clearInterval(dynamicSimState.intervalId);
+                    dynamicSimState.intervalId = setInterval(dynamicStep, dynamicSimState.speed);
                 }
             }
         });
@@ -1003,7 +1069,8 @@
             } else if (panning.active) {
                 const dx = e.clientX - panning.startX; const dy = e.clientY - panning.startY;
                 viewTransform.offsetX += dx; viewTransform.offsetY += dy;
-                panning.startX = e.clientX; panning.startY = e.clientY;
+                panning.startX = e.clientX;
+                panning.startY = e.clientY;
                 draw();
             }
         });

@@ -30,7 +30,7 @@
         .param-input {
             @apply w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm;
         }
-        #table-modal, #validation-modal, #chart-modal {
+        #table-modal, #validation-modal, #chart-modal, #variable-load-modal {
             background-color: rgba(0, 0, 0, 0.5);
             transition: opacity 0.3s ease;
         }
@@ -198,6 +198,57 @@
         </div>
     </div>
 
+    <!-- Variable Load Modal -->
+    <div id="variable-load-modal" class="hidden fixed inset-0 z-40 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col">
+            <header class="p-4 border-b flex justify-between items-center">
+                <h2 class="text-xl font-bold text-gray-700">Editar Carga Variável</h2>
+                <button id="close-load-modal-btn" class="text-gray-400 hover:text-gray-600 text-2xl font-bold">&times;</button>
+            </header>
+            <main class="p-4 flex-1 flex flex-col md:flex-row gap-4 overflow-hidden">
+                <!-- Left side: Inputs -->
+                <div class="w-full md:w-1/2 flex flex-col">
+                    <div class="border-b border-gray-200">
+                        <nav id="load-profile-tabs" class="-mb-px flex space-x-4" aria-label="Tabs">
+                            <button data-tab="diario" class="tab-btn tab-btn-active">Perfil Diário</button>
+                            <button data-tab="anual" class="tab-btn">Importar Anual</button>
+                        </nav>
+                    </div>
+                    <div id="load-tab-content-diario" class="py-4 overflow-y-auto flex-1">
+                         <p class="text-sm text-gray-600 mb-4">Insira a carga em Watts para cada hora do dia. O gráfico será atualizado automaticamente.</p>
+                         <div id="daily-load-inputs" class="grid grid-cols-4 gap-x-4 gap-y-2">
+                            <!-- 24 inputs will be generated here by JS -->
+                         </div>
+                         <div class="mt-4 pt-2 border-t text-right">
+                            <span class="text-sm font-medium text-gray-600">Total Diário: </span>
+                            <span id="daily-load-total" class="text-lg font-bold text-indigo-600">0.00</span>
+                            <span class="text-sm text-gray-500">kWh</span>
+                        </div>
+                    </div>
+                    <div id="load-tab-content-anual" class="hidden py-4 flex-1 flex flex-col">
+                        <label for="modal-param-perfilAnual" class="block text-sm font-medium text-gray-700">Perfil Anual (8760h em W)</label>
+                        <textarea id="modal-param-perfilAnual" rows="10" class="param-input mt-1 flex-1" placeholder="8760 valores em Watts, separados por vírgula..."></textarea>
+                        <div class="mt-2 pt-2 border-t text-right">
+                            <span class="text-sm font-medium text-gray-600">Total Anual: </span>
+                            <span id="annual-load-total" class="text-lg font-bold text-indigo-600">0.00</span>
+                            <span class="text-sm text-gray-500">kWh</span>
+                        </div>
+                    </div>
+                </div>
+                <!-- Right side: Chart -->
+                <div class="w-full md:w-1/2 flex flex-col">
+                     <h3 id="load-chart-title" class="text-md font-semibold text-gray-600 mb-2">Visualização do Perfil Diário</h3>
+                     <div class="relative flex-1 bg-gray-50 p-2 rounded-lg">
+                        <canvas id="load-chart-canvas"></canvas>
+                     </div>
+                </div>
+            </main>
+            <footer class="p-4 border-t flex justify-end">
+                <button id="save-load-modal-btn" class="bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-blue-700 transition">Guardar e Fechar</button>
+            </footer>
+        </div>
+    </div>
+
 
     <script type="module">
         // --- CONFIGURAÇÃO E CONSTANTES ---
@@ -239,6 +290,8 @@
         let viewTransform = { scale: 1, offsetX: 0, offsetY: 0 };
         let panning = { active: false, startX: 0, startY: 0 };
         let chartInstance = null;
+        let loadChartInstance = null;
+        let editingLoadComponent = null;
 
         // --- SETUP DO CANVAS E DOM ---
         const canvas = document.getElementById('workspace'); const ctx = canvas.getContext('2d');
@@ -266,6 +319,15 @@
         const totalEletricoDisplay = document.getElementById('totalEletricoDisplay');
         const totalGasNaturalDisplay = document.getElementById('totalGasNaturalDisplay');
         const totalPropanoDisplay = document.getElementById('totalPropanoDisplay');
+        const variableLoadModal = document.getElementById('variable-load-modal');
+        const closeLoadModalBtn = document.getElementById('close-load-modal-btn');
+        const saveLoadModalBtn = document.getElementById('save-load-modal-btn');
+        const loadChartCanvas = document.getElementById('load-chart-canvas').getContext('2d');
+        const dailyLoadInputsContainer = document.getElementById('daily-load-inputs');
+        const modalAnnualProfileTextarea = document.getElementById('modal-param-perfilAnual');
+        const loadChartTitle = document.getElementById('load-chart-title');
+        const dailyLoadTotalSpan = document.getElementById('daily-load-total');
+        const annualLoadTotalSpan = document.getElementById('annual-load-total');
         
         // --- HELPERS (TRANSFORMAÇÃO E GRELHA) ---
         function screenToWorld(x, y) {
@@ -348,13 +410,24 @@
             ctx.fillStyle = template.color; ctx.beginPath(); ctx.roundRect(comp.x, comp.y, COMPONENT_WIDTH, 24, [8, 8, 0, 0]); ctx.fill();
             ctx.fillStyle = 'white'; ctx.font = '600 14px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillText(comp.type, comp.x + COMPONENT_WIDTH / 2, comp.y + 12);
-            ctx.fillStyle = '#334155'; ctx.font = '12px Inter';
+
+            // Custom display logic for components
+            ctx.fillStyle = '#334155';
+            ctx.font = '12px Inter';
             const caudal = comp.results.caudal !== null ? `${comp.results.caudal.toFixed(2)} kg/s` : '--';
-            const temp = comp.results.tempSaida !== null ? `${comp.results.tempSaida.toFixed(1)}°C` : '--';
-            const pot = comp.results.potencia !== null ? `${(comp.results.potencia / 1000).toFixed(1)} kW` : '--';
-            ctx.fillText(caudal, comp.x + COMPONENT_WIDTH / 2, comp.y + 40);
-            ctx.fillText(temp, comp.x + COMPONENT_WIDTH / 2, comp.y + 55);
-            ctx.fillText(pot, comp.x + COMPONENT_WIDTH / 2, comp.y + 70);
+
+            if (comp.type === 'Bomba') {
+                const potEletrica = (comp.params.potEletrica / 1000).toFixed(2);
+                ctx.fillText(caudal, comp.x + COMPONENT_WIDTH / 2, comp.y + 45);
+                ctx.fillText(`P. Elétrica: ${potEletrica} kW`, comp.x + COMPONENT_WIDTH / 2, comp.y + 65);
+            } else {
+                const temp = comp.results.tempSaida !== null ? `${comp.results.tempSaida.toFixed(1)}°C` : '--';
+                const pot = comp.results.potencia !== null ? `${(comp.results.potencia / 1000).toFixed(1)} kW` : '--';
+                ctx.fillText(caudal, comp.x + COMPONENT_WIDTH / 2, comp.y + 40);
+                ctx.fillText(temp, comp.x + COMPONENT_WIDTH / 2, comp.y + 55);
+                ctx.fillText(pot, comp.x + COMPONENT_WIDTH / 2, comp.y + 70);
+            }
+
             drawConnectors(comp);
         }
 
@@ -449,7 +522,7 @@
             selectedComponent = comp;
             propertiesPanel.innerHTML = '';
             propertiesPanel.classList.remove('w-0', 'p-0');
-            propertiesPanel.classList.add('w-96', 'p-4'); // Wider panel
+            propertiesPanel.classList.add('w-96', 'p-4'); 
             let content = `<h3 class="text-lg font-bold text-gray-700 mb-4 border-b pb-2">${comp.type}</h3><div class="space-y-4">`;
             
             for (const key in comp.params) {
@@ -477,48 +550,22 @@
             content += '</div>';
 
             if (comp.params.hasOwnProperty('cargaVariavel')) {
-                const dailyProfile = comp.params.perfilDiario ? comp.params.perfilDiario.split(',').map(s => s.trim()) : Array(24).fill(0);
-                let dailyInputsHTML = '<div class="grid grid-cols-4 gap-2">';
-                for (let i = 0; i < 24; i++) {
-                    dailyInputsHTML += `<div class="flex items-center"><label for="h${i}" class="text-xs mr-1">${i}h:</label><input type="number" id="h${i}" value="${dailyProfile[i] || 0}" class="w-full p-1 border border-gray-300 rounded-md text-xs"></div>`;
-                }
-                dailyInputsHTML += '</div>';
-
                 content += `<div class="mt-4 pt-4 border-t">
                     <h4 class="text-md font-semibold text-gray-600 mb-2">Carga Variável</h4>
                     <div class="flex items-center mb-2">
                         <input type="checkbox" id="param-cargaVariavel" ${comp.params.cargaVariavel ? 'checked' : ''} class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
                         <label for="param-cargaVariavel" class="ml-2 block text-sm text-gray-900">Ativar Carga Variável</label>
                     </div>
-
-                    <div class="border-b border-gray-200">
-                        <nav id="profile-tabs" class="-mb-px flex space-x-4" aria-label="Tabs">
-                            <button data-tab="diario" class="tab-btn tab-btn-active">Perfil Diário</button>
-                            <button data-tab="anual" class="tab-btn">Importar Anual</button>
-                        </nav>
-                    </div>
-                    
-                    <div id="tab-content-diario" class="py-4">${dailyInputsHTML}</div>
-                    <div id="tab-content-anual" class="hidden py-4">
-                        <label for="param-perfilAnual" class="block text-sm font-medium text-gray-700">Perfil Anual (8760h em W)</label>
-                        <textarea id="param-perfilAnual" rows="5" class="param-input mt-1" placeholder="8760 valores em Watts, separados por vírgula...">${comp.params.perfilAnual || ''}</textarea>
-                    </div>
+                    <button id="edit-variable-load-btn" class="w-full mt-2 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition">Editar Perfil de Carga</button>
                 </div>`;
             }
 
             content += `<div class="mt-6 pt-4 border-t space-y-2"><button id="save-params-btn" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition">Guardar</button><button id="delete-comp-btn" class="w-full bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition">Apagar</button></div>`;
             propertiesPanel.innerHTML = content;
             
-            const tabs = propertiesPanel.querySelectorAll('#profile-tabs button');
-            if (tabs.length > 0) {
-                tabs.forEach(tab => {
-                    tab.addEventListener('click', () => {
-                        tabs.forEach(t => t.classList.remove('tab-btn-active'));
-                        tab.classList.add('tab-btn-active');
-                        propertiesPanel.querySelector('#tab-content-diario').classList.toggle('hidden', tab.dataset.tab !== 'diario');
-                        propertiesPanel.querySelector('#tab-content-anual').classList.toggle('hidden', tab.dataset.tab !== 'anual');
-                    });
-                });
+            const editLoadBtn = document.getElementById('edit-variable-load-btn');
+            if (editLoadBtn) {
+                editLoadBtn.addEventListener('click', () => showVariableLoadModal(comp));
             }
 
             document.getElementById('save-params-btn').addEventListener('click', () => saveComponentParams(comp));
@@ -537,48 +584,16 @@
         function saveComponentParams(comp) {
             for (const key in comp.params) {
                 const input = document.getElementById(`param-${key}`);
-                if (['cargaVariavel', 'perfilDiario', 'perfilAnual', 'perfilArray'].includes(key)) continue;
+                if (['perfilDiario', 'perfilAnual', 'perfilArray'].includes(key)) continue; 
+                
                 if (input) {
-                    if (input.tagName === 'SELECT') {
+                    if (input.type === 'checkbox') {
+                        comp.params[key] = input.checked;
+                    } else if (input.tagName === 'SELECT') {
                         comp.params[key] = input.value;
                     } else {
                         comp.params[key] = parseFloat(input.value) || 0;
                     }
-                }
-            }
-
-            if (comp.params.hasOwnProperty('cargaVariavel')) {
-                comp.params.cargaVariavel = document.getElementById('param-cargaVariavel').checked;
-                
-                const dailyValues = [];
-                for(let i=0; i<24; i++) {
-                    dailyValues.push(document.getElementById(`h${i}`).value || '0');
-                }
-                comp.params.perfilDiario = dailyValues.join(',');
-                
-                const annualInput = document.getElementById('param-perfilAnual');
-                const annualValuesStr = annualInput.value.trim();
-                comp.params.perfilAnual = annualValuesStr; 
-                
-                if (annualValuesStr) {
-                    const profileArray = annualValuesStr.split(',').map(s => parseFloat(s.trim()));
-                    const validNumbers = profileArray.filter(n => !isNaN(n));
-                    if(validNumbers.length !== profileArray.length) {
-                        showMessage('Aviso: O perfil anual contém valores não numéricos.', true);
-                        comp.params.perfilArray = [];
-                    } else if (validNumbers.length !== 8760) {
-                        showMessage(`Aviso: Perfil anual deve ter 8760 valores. Fornecidos: ${validNumbers.length}.`, true);
-                        comp.params.perfilArray = [];
-                    } else {
-                        comp.params.perfilArray = validNumbers; 
-                        showMessage('Perfil anual de 8760h importado com sucesso.');
-                    }
-                } else {
-                     comp.params.perfilArray = [];
-                     const dailyNumeric = comp.params.perfilDiario.split(',').map(Number);
-                     for(let i=0; i < 365; i++) {
-                        comp.params.perfilArray.push(...dailyNumeric);
-                     }
                 }
             }
             showMessage(`${comp.type} atualizado.`);
@@ -617,6 +632,178 @@
 
         function hideDataTable() {
             tableModal.classList.add('hidden');
+        }
+
+        function updateDailyLoadTotal() {
+            let totalWh = 0;
+            for (let i = 0; i < 24; i++) {
+                const input = dailyLoadInputsContainer.querySelector(`#modal-h${i}`);
+                if (input) {
+                    totalWh += parseFloat(input.value) || 0;
+                }
+            }
+            const totalKWh = totalWh / 1000;
+            dailyLoadTotalSpan.textContent = totalKWh.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function updateAnnualLoadTotal() {
+            const annualValuesStr = modalAnnualProfileTextarea.value.trim();
+            if (!annualValuesStr) {
+                annualLoadTotalSpan.textContent = '0.00';
+                return;
+            }
+            const profileArray = annualValuesStr.split(',').map(s => parseFloat(s.trim()));
+            const totalWh = profileArray.reduce((sum, val) => sum + (isNaN(val) ? 0 : val), 0);
+            const totalKWh = totalWh / 1000;
+            annualLoadTotalSpan.textContent = totalKWh.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+
+        function showVariableLoadModal(comp) {
+            editingLoadComponent = comp;
+            variableLoadModal.classList.remove('hidden');
+
+            dailyLoadInputsContainer.innerHTML = ''; 
+            const dailyProfile = comp.params.perfilDiario ? comp.params.perfilDiario.split(',').map(s => s.trim()) : Array(24).fill(0);
+            for (let i = 0; i < 24; i++) {
+                const inputWrapper = document.createElement('div');
+                inputWrapper.className = 'flex items-center';
+                inputWrapper.innerHTML = `<label for="modal-h${i}" class="text-xs mr-1 w-8 text-right">${i}h:</label><input type="number" id="modal-h${i}" value="${dailyProfile[i] || 0}" class="w-full p-1 border border-gray-300 rounded-md text-xs">`;
+                const input = inputWrapper.querySelector('input');
+                input.addEventListener('input', () => {
+                     const data = [];
+                     for(let j=0; j<24; j++) {
+                        data.push(parseFloat(dailyLoadInputsContainer.querySelector(`#modal-h${j}`).value) || 0);
+                     }
+                     renderLoadChartDaily(data);
+                     updateDailyLoadTotal();
+                });
+                dailyLoadInputsContainer.appendChild(inputWrapper);
+            }
+            
+            modalAnnualProfileTextarea.value = comp.params.perfilAnual || '';
+            
+            updateDailyLoadTotal();
+            updateAnnualLoadTotal();
+
+            const activeTab = document.querySelector('#load-profile-tabs button.tab-btn-active');
+            if (activeTab && activeTab.dataset.tab === 'anual') {
+                 loadChartTitle.textContent = 'Visualização do Perfil Anual (Soma Mensal)';
+                 renderLoadChartAnnual(modalAnnualProfileTextarea.value);
+            } else {
+                 loadChartTitle.textContent = 'Visualização do Perfil Diário';
+                 renderLoadChartDaily(dailyProfile.map(Number));
+            }
+        }
+
+        function hideVariableLoadModal() {
+            variableLoadModal.classList.add('hidden');
+            editingLoadComponent = null;
+        }
+
+        function saveVariableLoadParams() {
+            if (!editingLoadComponent) return;
+
+            const dailyValues = [];
+            for(let i=0; i<24; i++) {
+                dailyValues.push(dailyLoadInputsContainer.querySelector(`#modal-h${i}`).value || '0');
+            }
+            editingLoadComponent.params.perfilDiario = dailyValues.join(',');
+            
+            const annualValuesStr = modalAnnualProfileTextarea.value.trim();
+            editingLoadComponent.params.perfilAnual = annualValuesStr; 
+            
+            if (annualValuesStr) {
+                const profileArray = annualValuesStr.split(',').map(s => parseFloat(s.trim()));
+                const validNumbers = profileArray.filter(n => !isNaN(n));
+
+                if(validNumbers.length !== profileArray.length) {
+                    showMessage('Aviso: O perfil anual contém valores não numéricos.', true);
+                    editingLoadComponent.params.perfilArray = [];
+                } else if (validNumbers.length !== 8760) {
+                    showMessage(`Aviso: Perfil anual deve ter 8760 valores. Fornecidos: ${validNumbers.length}.`, true);
+                    editingLoadComponent.params.perfilArray = [];
+                } else {
+                    editingLoadComponent.params.perfilArray = validNumbers; 
+                    showMessage('Perfil anual de 8760h importado com sucesso.');
+                }
+            } else {
+                 editingLoadComponent.params.perfilArray = [];
+                 const dailyNumeric = editingLoadComponent.params.perfilDiario.split(',').map(Number);
+                 for(let i=0; i < 365; i++) {
+                    editingLoadComponent.params.perfilArray.push(...dailyNumeric);
+                 }
+            }
+            hideVariableLoadModal();
+        }
+
+        function renderLoadChartDaily(data) {
+            if (loadChartInstance) {
+                loadChartInstance.destroy();
+            }
+            const labels = Array.from({length: 24}, (_, i) => `${i}h`);
+            loadChartInstance = new Chart(loadChartCanvas, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Carga Horária (W)',
+                        data: data,
+                        backgroundColor: 'rgba(79, 70, 229, 0.7)', // indigo-600
+                    }]
+                },
+                options: {
+                    scales: { y: { beginAtZero: true, title: { display: true, text: 'Potência (W)' } } },
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+        
+        function renderLoadChartAnnual(dataString) {
+            if (loadChartInstance) { loadChartInstance.destroy(); }
+            const stringArray = dataString.split(',');
+            
+            let monthlyTotals = Array(12).fill(0);
+            let errorMessage = '';
+            
+            if (stringArray.length > 1 && stringArray.some(s => s.trim() !== '' && isNaN(parseFloat(s)))) {
+               errorMessage = 'Aviso: Dados anuais contêm valores não numéricos.';
+            }
+            
+            const validNumbers = stringArray.map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+
+            if (validNumbers.length > 0 && validNumbers.length !== 8760) {
+               errorMessage = `Aviso: Perfil deve ter 8760 valores. Fornecidos: ${validNumbers.length}.`;
+            }
+
+            if (!errorMessage && validNumbers.length === 8760) {
+                const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+                let hourCounter = 0;
+                for (let i = 0; i < 12; i++) {
+                    const hoursInThisMonth = daysInMonth[i] * 24;
+                    const monthSlice = validNumbers.slice(hourCounter, hourCounter + hoursInThisMonth);
+                    monthlyTotals[i] = monthSlice.reduce((a, b) => a + b, 0) / 1000; // to kWh
+                    hourCounter += hoursInThisMonth;
+                }
+            }
+            
+            const monthLabels = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+            loadChartInstance = new Chart(loadChartCanvas, {
+                type: 'bar',
+                data: {
+                    labels: monthLabels,
+                    datasets: [{
+                        label: 'Carga Mensal (kWh)', data: monthlyTotals,
+                        backgroundColor: 'rgba(168, 85, 247, 0.7)', // purple-500
+                    }]
+                },
+                options: {
+                    scales: { y: { beginAtZero: true, title: { display: true, text: 'Energia (kWh)' } } },
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, title: { display: !!errorMessage, text: errorMessage } }
+                }
+            });
         }
 
         // --- VALIDAÇÃO E SIMULAÇÃO ---
@@ -978,6 +1165,38 @@
         closeValidationModalBtn.addEventListener('click', () => validationModal.classList.add('hidden'));
         clearBtn.addEventListener('click', clearWorkspace);
         clearResultsBtn.addEventListener('click', () => resetDynamicSimulation(true));
+        
+        closeLoadModalBtn.addEventListener('click', hideVariableLoadModal);
+        saveLoadModalBtn.addEventListener('click', saveVariableLoadParams);
+
+        const loadProfileTabs = document.querySelectorAll('#load-profile-tabs button');
+        loadProfileTabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                loadProfileTabs.forEach(t => t.classList.remove('tab-btn-active'));
+                tab.classList.add('tab-btn-active');
+                document.getElementById('load-tab-content-diario').classList.toggle('hidden', tab.dataset.tab !== 'diario');
+                document.getElementById('load-tab-content-anual').classList.toggle('hidden', tab.dataset.tab !== 'anual');
+                
+                if (tab.dataset.tab === 'diario') {
+                    loadChartTitle.textContent = 'Visualização do Perfil Diário';
+                    const data = [];
+                    for(let j=0; j<24; j++) {
+                        data.push(parseFloat(dailyLoadInputsContainer.querySelector(`#modal-h${j}`).value) || 0);
+                    }
+                    renderLoadChartDaily(data);
+                } else { // anual
+                    loadChartTitle.textContent = 'Visualização do Perfil Anual (Soma Mensal)';
+                    renderLoadChartAnnual(modalAnnualProfileTextarea.value);
+                }
+            });
+        });
+        modalAnnualProfileTextarea.addEventListener('input', () => {
+            const activeTab = document.querySelector('#load-profile-tabs button.tab-btn-active');
+            if (activeTab && activeTab.dataset.tab === 'anual') {
+                renderLoadChartAnnual(modalAnnualProfileTextarea.value);
+                updateAnnualLoadTotal();
+            }
+        });
         
         speedSelector.addEventListener('click', (e) => {
             if(e.target.tagName === 'BUTTON') {

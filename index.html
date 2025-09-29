@@ -260,20 +260,20 @@
 
         // --- DEFINIÇÃO DOS COMPONENTES ---
         const componentTemplates = {
-            'Caldeira': { category: 'Produção', color: '#22c55e', params: { potencia: 100000, tempSaida: 80, rendimento: 0.9, potEletrica: 200, fuelType: 'Gás Natural' }, inputs: ['entrada'], outputs: ['saida'] },
-            'Bomba de Calor': { category: 'Produção', color: '#16a34a', params: { potencia: 25000, COP: 4.0 }, inputs: ['entrada'], outputs: ['saida'] },
-            'Chiller': { category: 'Produção', color: '#0ea5e9', params: { potencia: 50000, EER: 3.5 }, inputs: ['entrada'], outputs: ['saida'] },
-            'Produtor Genérico': { category: 'Produção', color: '#f43f5e', params: { potencia: 10000, cargaVariavel: false, perfilDiario: '', perfilAnual: '', energySource: 'Eletricidade' }, inputs: ['entrada'], outputs: ['saida'] },
-            'Bomba': { category: 'Impulsão', color: '#3b82f6', params: { caudal: 2.0, potEletrica: 500 }, inputs: ['entrada'], outputs: ['saida'] },
-            'Tubo': { category: 'Distribuição', color: '#64748b', params: { comprimento: 10, perdaTermica: 0.5 /* W/m.K */ }, inputs: ['entrada'], outputs: ['saida'] },
-            'Depósito de Inércia': { category: 'Distribuição', color: '#a855f7', params: { volume: 500 }, inputs: ['entrada'], outputs: ['saida'] },
-            'Permutador de Placas': { category: 'Distribuição', color: '#84cc16', params: { potencia: 15000 }, inputs: ['entrada'], outputs: ['saida'] },
-            'Coletor': { category: 'Distribuição', color: '#78716c', params: {}, inputs: ['in1', 'in2'], outputs: ['out1', 'out2'] },
-            'Válvula de Regulação': { category: 'Distribuição', color: '#eab308', params: { abertura: 100 }, inputs: ['entrada'], outputs: ['saida'] },
-            'Radiador': { category: 'Consumo', color: '#ef4444', params: { potencia: 5000, cargaVariavel: false, perfilDiario: '', perfilAnual: '' }, inputs: ['entrada'], outputs: ['saida'] },
-            'Unidade de Tratamento de Ar': { category: 'Consumo', color: '#dc2626', params: { potencia: 20000, cargaVariavel: false, perfilDiario: '', perfilAnual: '' }, inputs: ['entrada'], outputs: ['saida'] },
-            'Carga Genérica': { category: 'Consumo', color: '#be123c', params: { potencia: 15000, cargaVariavel: false, perfilDiario: '', perfilAnual: '' }, inputs: ['entrada'], outputs: ['saida'] },
-            'Acumulador': { category: 'Acumulação', color: '#f97316', params: { volume: 500 }, inputs: ['entrada'], outputs: ['saida'] }
+            'Caldeira': { category: 'Produção', color: '#22c55e', params: { potencia: 100000, tempSaida: 80, rendimento: 0.9, potEletrica: 200, fuelType: 'Gás Natural', perdaCarga: 5 }, inputs: ['entrada'], outputs: ['saida'] },
+            'Bomba de Calor': { category: 'Produção', color: '#16a34a', params: { potencia: 25000, COP: 4.0, perdaCarga: 5 }, inputs: ['entrada'], outputs: ['saida'] },
+            'Chiller': { category: 'Produção', color: '#0ea5e9', params: { potencia: 50000, EER: 3.5, perdaCarga: 5 }, inputs: ['entrada'], outputs: ['saida'] },
+            'Produtor Genérico': { category: 'Produção', color: '#f43f5e', params: { potencia: 10000, cargaVariavel: false, perfilDiario: '', perfilAnual: '', energySource: 'Eletricidade', perdaCarga: 5 }, inputs: ['entrada'], outputs: ['saida'] },
+            'Bomba': { category: 'Impulsão', color: '#3b82f6', params: { caudal: 2.0, potEletrica: 500, alturaManometrica: 100 }, inputs: ['entrada'], outputs: ['saida'] },
+            'Tubo': { category: 'Distribuição', color: '#64748b', params: { comprimento: 10, perdaTermica: 0.5, perdaCarga: 2 }, inputs: ['entrada'], outputs: ['saida'] },
+            'Depósito de Inércia': { category: 'Distribuição', color: '#a855f7', params: { volume: 500, perdaCarga: 3 }, inputs: ['entrada'], outputs: ['saida'] },
+            'Permutador': { category: 'Distribuição', color: '#84cc16', params: { potencia: 15000, tipo: 'Placas', perdaCarga: 15 }, inputs: ['primario_in', 'secundario_in'], outputs: ['primario_out', 'secundario_out'] },
+            'Coletor': { category: 'Distribuição', color: '#78716c', params: { numEntradas: 2, numSaidas: 2, perdaCarga: 1 }, inputs: ['in1', 'in2'], outputs: ['out1', 'out2'] },
+            'Válvula de Regulação': { category: 'Distribuição', color: '#eab308', params: { abertura: 100, perdaCarga: 2 }, inputs: ['entrada'], outputs: ['saida'] },
+            'Radiador': { category: 'Consumo', color: '#ef4444', params: { potencia: 5000, cargaVariavel: false, perfilDiario: '', perfilAnual: '', perdaCarga: 10 }, inputs: ['entrada'], outputs: ['saida'] },
+            'Unidade de Tratamento de Ar': { category: 'Consumo', color: '#dc2626', params: { potencia: 20000, cargaVariavel: false, perfilDiario: '', perfilAnual: '', perdaCarga: 10 }, inputs: ['entrada'], outputs: ['saida'] },
+            'Carga Genérica': { category: 'Consumo', color: '#be123c', params: { potencia: 15000, cargaVariavel: false, perfilDiario: '', perfilAnual: '', perdaCarga: 10 }, inputs: ['entrada'], outputs: ['saida'] },
+            'Acumulador': { category: 'Acumulação', color: '#f97316', params: { volume: 500, perdaCarga: 3 }, inputs: ['entrada'], outputs: ['saida'] }
         };
 
         // --- ESTADO DA APLICAÇÃO ---
@@ -330,6 +330,14 @@
         const annualLoadTotalSpan = document.getElementById('annual-load-total');
         
         // --- HELPERS (TRANSFORMAÇÃO E GRELHA) ---
+        function getComponentHeight(comp) {
+            if (comp.type === 'Coletor') {
+                const numConnectors = Math.max(comp.inputs?.length || 1, comp.outputs?.length || 1);
+                return 40 + numConnectors * 25; // Base height + spacing per connector
+            }
+            return COMPONENT_HEIGHT;
+        }
+
         function screenToWorld(x, y) {
             return {
                 x: (x - viewTransform.offsetX) / viewTransform.scale,
@@ -396,8 +404,17 @@
             setTimeout(() => { messageBox.classList.add('hidden'); }, 3000);
         }
 
+        function getComponentConnectors(comp, type) {
+            const template = componentTemplates[comp.type];
+            if (comp.type === 'Coletor' && comp.inputs && comp.outputs) {
+                return type === 'input' ? comp.inputs : comp.outputs;
+            }
+            return type === 'input' ? template.inputs : template.outputs;
+        }
+
         function drawComponent(comp) {
             const template = componentTemplates[comp.type];
+            const height = getComponentHeight(comp); // Get dynamic height
             ctx.fillStyle = 'white';
             ctx.strokeStyle = template.color;
             if (comp === selectedComponent) {
@@ -405,22 +422,24 @@
             } else {
                 ctx.lineWidth = 2;
             }
-            ctx.beginPath(); ctx.roundRect(comp.x, comp.y, COMPONENT_WIDTH, COMPONENT_HEIGHT, [8]); ctx.fill(); ctx.stroke();
+            ctx.beginPath(); ctx.roundRect(comp.x, comp.y, COMPONENT_WIDTH, height, [8]); ctx.fill(); ctx.stroke();
             ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.lineWidth = 1;
             ctx.fillStyle = template.color; ctx.beginPath(); ctx.roundRect(comp.x, comp.y, COMPONENT_WIDTH, 24, [8, 8, 0, 0]); ctx.fill();
             ctx.fillStyle = 'white'; ctx.font = '600 14px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillText(comp.type, comp.x + COMPONENT_WIDTH / 2, comp.y + 12);
 
-            // Custom display logic for components
             ctx.fillStyle = '#334155';
             ctx.font = '12px Inter';
-            const caudal = comp.results.caudal !== null ? `${comp.results.caudal.toFixed(2)} kg/s` : '--';
-
+            
             if (comp.type === 'Bomba') {
+                const caudal = comp.results.caudal !== null ? `${comp.results.caudal.toFixed(2)} kg/s` : '--';
+                const altura = comp.params.alturaManometrica;
                 const potEletrica = (comp.params.potEletrica / 1000).toFixed(2);
-                ctx.fillText(caudal, comp.x + COMPONENT_WIDTH / 2, comp.y + 45);
-                ctx.fillText(`P. Elétrica: ${potEletrica} kW`, comp.x + COMPONENT_WIDTH / 2, comp.y + 65);
+                ctx.fillText(caudal, comp.x + COMPONENT_WIDTH / 2, comp.y + 40);
+                ctx.fillText(`Altura: ${altura} kPa`, comp.x + COMPONENT_WIDTH / 2, comp.y + 55);
+                ctx.fillText(`P.Elétrica: ${potEletrica} kW`, comp.x + COMPONENT_WIDTH / 2, comp.y + 70);
             } else {
+                const caudal = comp.results.caudal !== null ? `${comp.results.caudal.toFixed(2)} kg/s` : '--';
                 const temp = comp.results.tempSaida !== null ? `${comp.results.tempSaida.toFixed(1)}°C` : '--';
                 const pot = comp.results.potencia !== null ? `${(comp.results.potencia / 1000).toFixed(1)} kW` : '--';
                 ctx.fillText(caudal, comp.x + COMPONENT_WIDTH / 2, comp.y + 40);
@@ -432,24 +451,34 @@
         }
 
         function getConnectorPos(comp, type, name) {
-            const template = componentTemplates[comp.type];
-            const connectors = type === 'input' ? template.inputs : template.outputs;
+            const connectors = getComponentConnectors(comp, type);
+            const height = getComponentHeight(comp); // Get dynamic height
             const index = connectors.indexOf(name);
             if (index === -1) return { x: comp.x, y: comp.y };
             const total = connectors.length;
-            const y = comp.y + 24 + (COMPONENT_HEIGHT - 24) / (total + 1) * (index + 1);
+            const y = comp.y + 24 + (height - 24) / (total + 1) * (index + 1);
             const isInputOnLeft = !comp.flipped;
+            
+            if (comp.type === 'Permutador') {
+                 const isPrimary = name.includes('primario');
+                 const yOffset = isPrimary ? -10 : 10;
+                 const yPos = comp.y + height / 2 + yOffset;
+                 if (type === 'input') return { x: isInputOnLeft ? comp.x : comp.x + COMPONENT_WIDTH, y: yPos };
+                 else return { x: isInputOnLeft ? comp.x + COMPONENT_WIDTH : comp.x, y: yPos };
+            }
+
             if (type === 'input') { return { x: isInputOnLeft ? comp.x : comp.x + COMPONENT_WIDTH, y }; } 
             else { return { x: isInputOnLeft ? comp.x + COMPONENT_WIDTH : comp.x, y }; }
         }
 
         function drawConnectors(comp) {
-            const template = componentTemplates[comp.type];
-            template.inputs.forEach(name => {
+            const inputs = getComponentConnectors(comp, 'input');
+            inputs.forEach(name => {
                 const pos = getConnectorPos(comp, 'input', name);
                 ctx.beginPath(); ctx.arc(pos.x, pos.y, CONNECTOR_RADIUS, 0, 2 * Math.PI); ctx.fillStyle = '#3b82f6'; ctx.fill();
             });
-            template.outputs.forEach(name => {
+            const outputs = getComponentConnectors(comp, 'output');
+            outputs.forEach(name => {
                 const pos = getConnectorPos(comp, 'output', name);
                 ctx.beginPath(); ctx.arc(pos.x, pos.y, CONNECTOR_RADIUS, 0, 2 * Math.PI); ctx.fillStyle = '#ef4444'; ctx.fill();
             });
@@ -525,11 +554,14 @@
             propertiesPanel.classList.add('w-96', 'p-4'); 
             let content = `<h3 class="text-lg font-bold text-gray-700 mb-4 border-b pb-2">${comp.type}</h3><div class="space-y-4">`;
             
+            // Generic parameter inputs
+            const specialKeys = ['cargaVariavel', 'perfilDiario', 'perfilAnual', 'perfilArray', 'fuelType', 'energySource', 'numEntradas', 'numSaidas', 'tipo'];
             for (const key in comp.params) {
-                if (['cargaVariavel', 'perfilDiario', 'perfilAnual', 'perfilArray', 'fuelType', 'energySource'].includes(key)) continue;
-                content += `<div><label for="param-${key}" class="block text-sm font-medium text-gray-700 capitalize">${key}</label><input type="number" id="param-${key}" value="${comp.params[key]}" class="param-input mt-1"></div>`;
+                if (specialKeys.includes(key)) continue;
+                content += `<div><label for="param-${key}" class="block text-sm font-medium text-gray-700 capitalize">${key.replace(/([A-Z])/g, ' $1')}</label><input type="number" id="param-${key}" value="${comp.params[key]}" class="param-input mt-1"></div>`;
             }
 
+            // Special inputs for specific components
             if(comp.type === 'Caldeira') {
                 content += `<div><label for="param-fuelType" class="block text-sm font-medium text-gray-700">Combustível</label>
                 <select id="param-fuelType" class="param-input mt-1">
@@ -545,6 +577,19 @@
                     <option value="Gás Natural" ${comp.params.energySource === 'Gás Natural' ? 'selected' : ''}>Gás Natural</option>
                     <option value="Propano" ${comp.params.energySource === 'Propano' ? 'selected' : ''}>Propano</option>
                 </select></div>`;
+            }
+
+            if(comp.type === 'Permutador') {
+                 content += `<div><label for="param-tipo" class="block text-sm font-medium text-gray-700">Tipo</label>
+                 <select id="param-tipo" class="param-input mt-1">
+                    <option value="Placas" ${comp.params.tipo === 'Placas' ? 'selected' : ''}>Placas</option>
+                    <option value="Tubular" ${comp.params.tipo === 'Tubular' ? 'selected' : ''}>Tubular</option>
+                 </select></div>`;
+            }
+
+            if(comp.type === 'Coletor') {
+                content += `<div><label for="param-numEntradas" class="block text-sm font-medium text-gray-700">Nº de Entradas</label><input type="number" id="param-numEntradas" value="${comp.params.numEntradas}" min="1" class="param-input mt-1"></div>`;
+                content += `<div><label for="param-numSaidas" class="block text-sm font-medium text-gray-700">Nº de Saídas</label><input type="number" id="param-numSaidas" value="${comp.params.numSaidas}" min="1" class="param-input mt-1"></div>`;
             }
 
             content += '</div>';
@@ -580,6 +625,17 @@
             propertiesPanel.innerHTML = '';
             draw();
         }
+        
+        function updateColetorConnectors(comp) {
+            comp.inputs = [];
+            for (let i = 1; i <= comp.params.numEntradas; i++) {
+                comp.inputs.push(`in${i}`);
+            }
+            comp.outputs = [];
+            for (let i = 1; i <= comp.params.numSaidas; i++) {
+                comp.outputs.push(`out${i}`);
+            }
+        }
 
         function saveComponentParams(comp) {
             for (const key in comp.params) {
@@ -596,6 +652,17 @@
                     }
                 }
             }
+
+            if (comp.type === 'Coletor') {
+                updateColetorConnectors(comp);
+                connections = connections.filter(c => {
+                    if (c.from.id === comp.id && !comp.outputs.includes(c.from.connector)) return false;
+                    if (c.to.id === comp.id && !comp.inputs.includes(c.to.connector)) return false;
+                    return true;
+                });
+                draw();
+            }
+
             showMessage(`${comp.type} atualizado.`);
             hidePropertiesPanel();
         }
@@ -846,7 +913,7 @@
             validationModal.classList.remove('hidden');
         }
 
-        function runSteadyStateCalculation() {
+        function runSteadyStateCalculation(isDynamicStep = false) {
             steadyResultsAvailable = false;
             components.forEach(c => c.results = { 
                 caudal: null, tempEntrada: null, tempSaida: null, potencia: null,
@@ -860,8 +927,19 @@
             const simulationOrder = [], visited = new Set();
             let currentComp = producer;
             while (currentComp && !visited.has(currentComp.id)) {
-                simulationOrder.push(currentComp); visited.add(currentComp.id);
-                const connection = connections.find(c => c.from.id === currentComp.id);
+                simulationOrder.push(currentComp); 
+                visited.add(currentComp.id);
+                
+                let connection;
+                if (currentComp.type === 'Permutador') {
+                    connection = connections.find(c => c.from.id === currentComp.id && c.from.connector === 'primario_out');
+                } else if (currentComp.type === 'Coletor') {
+                    connection = connections.find(c => c.from.id === currentComp.id && c.from.connector === 'out1');
+                }
+                else {
+                    connection = connections.find(c => c.from.id === currentComp.id);
+                }
+
                 currentComp = connection ? components.find(c => c.id === connection.to.id) : null;
             }
             
@@ -918,9 +996,9 @@
                             break;
                         }
                         case 'Válvula de Regulação': comp.results.tempSaida = currentTemp; comp.results.potencia = 0; break;
-                        case 'Radiador': case 'Unidade de Tratamento de Ar': case 'Carga Genérica': case 'Permutador de Placas': {
+                        case 'Radiador': case 'Unidade de Tratamento de Ar': case 'Carga Genérica': case 'Permutador': {
                             let potenciaConsumo = comp.params.potencia;
-                            if (dynamicSimState.running && comp.params.cargaVariavel && comp.params.perfilArray?.length === 8760) {
+                            if (!comp.type.includes('Permutador') && dynamicSimState.running && comp.params.cargaVariavel && comp.params.perfilArray?.length === 8760) {
                                 potenciaConsumo = comp.params.perfilArray[dynamicSimState.hour - 1] || 0;
                             }
                             comp.results.tempSaida = currentTemp - (potenciaConsumo / (caudal * SPECIFIC_HEAT_WATER));
@@ -945,7 +1023,14 @@
              }
 
             steadyResultsAvailable = true;
-            if(!dynamicSimState.running) draw(); 
+
+            if(!isDynamicStep) {
+                const totalPerdaCarga = simulationOrder.reduce((sum, comp) => sum + (comp.params.perdaCarga || 0), 0);
+                if (pump && totalPerdaCarga > pump.params.alturaManometrica) {
+                    showMessage(`Aviso Hidráulico: Perda de carga (${totalPerdaCarga.toFixed(1)} kPa) > Altura da bomba (${pump.params.alturaManometrica} kPa)`, true);
+                }
+                draw();
+            }
         }
 
         function startDynamicSimulation() {
@@ -1020,7 +1105,7 @@
             const dateString = getDateFromHour(dynamicSimState.hour);
             dynamicTimeDisplay.textContent = `Hora: ${dynamicSimState.hour} (${dateString})`;
             
-            runSteadyStateCalculation();
+            runSteadyStateCalculation(true);
 
             let consumoTermicoHora = 0;
             let consumoEletricoHora = 0;
@@ -1152,7 +1237,7 @@
                 showValidationWarning(validationErrors);
                 return;
             }
-            runSteadyStateCalculation();
+            runSteadyStateCalculation(false);
             showMessage("Simulação Steady-State concluída!");
         });
 
@@ -1240,11 +1325,15 @@
             let y = Math.round((worldPos.y - COMPONENT_HEIGHT / 2) / GRID_SIZE) * GRID_SIZE;
             const template = componentTemplates[type];
             if (template) {
-                components.push({
+                const newComp = {
                     id: nextId++, type: type, x: x, y: y, flipped: false,
                     params: JSON.parse(JSON.stringify(template.params)),
                     results: { caudal: null, tempEntrada: null, tempSaida: null, potencia: null }
-                });
+                };
+                if (type === 'Coletor') {
+                    updateColetorConnectors(newComp);
+                }
+                components.push(newComp);
                 draw();
             }
         });
@@ -1256,12 +1345,16 @@
             const mx = worldPos.x; const my = worldPos.y;
             
             for (const comp of [...components].reverse()) {
-                for(const name of componentTemplates[comp.type].outputs) {
+                const outputs = getComponentConnectors(comp, 'output');
+                for(const name of outputs) {
                     const pos = getConnectorPos(comp, 'output', name);
                     if (Math.hypot(mx - pos.x, my - pos.y) < CONNECTOR_RADIUS + 2) { connectingFrom = { component: comp, connector: name }; draw(); return; }
                 }
             }
-            draggingComponent = components.find(c => mx > c.x && mx < c.x + COMPONENT_WIDTH && my > c.y && my < c.y + COMPONENT_HEIGHT);
+            draggingComponent = components.find(c => {
+                const height = getComponentHeight(c);
+                return mx > c.x && mx < c.x + COMPONENT_WIDTH && my > c.y && my < c.y + height;
+            });
             if(draggingComponent) { 
                 draggingComponent.offsetX = mx - draggingComponent.x; 
                 draggingComponent.offsetY = my - draggingComponent.y; 
@@ -1302,7 +1395,8 @@
                 let connectionMade = false;
                 for (const comp of components) {
                     if (comp.id === connectingFrom.component.id) continue;
-                    for(const name of componentTemplates[comp.type].inputs) {
+                    const inputs = getComponentConnectors(comp, 'input');
+                    for(const name of inputs) {
                         const pos = getConnectorPos(comp, 'input', name);
                         if (Math.hypot(mx - pos.x, my - pos.y) < CONNECTOR_RADIUS + 2) {
                             if (!connections.find(c => c.to.id === comp.id && c.to.connector === name)) {
@@ -1317,7 +1411,10 @@
             } 
             else if (!mouse.dragMoved) { 
                 let clickedOnSomething = false;
-                const clickedComp = components.find(c => mx > c.x && mx < c.x + COMPONENT_WIDTH && my > c.y && my < c.y + COMPONENT_HEIGHT);
+                const clickedComp = components.find(c => {
+                    const height = getComponentHeight(c);
+                    return mx > c.x && mx < c.x + COMPONENT_WIDTH && my > c.y && my < c.y + height;
+                });
                 if (clickedComp) {
                     selectedConnection = null; showPropertiesPanel(clickedComp); clickedOnSomething = true;
                 } else {
@@ -1348,7 +1445,10 @@
         canvas.addEventListener('dblclick', (e) => {
             const worldPos = screenToWorld(e.clientX - e.target.getBoundingClientRect().left, e.clientY - e.target.getBoundingClientRect().top);
             const mx = worldPos.x; const my = worldPos.y;
-            const clickedComp = components.find(c => mx > c.x && mx < c.x + COMPONENT_WIDTH && my > c.y && my < c.y + COMPONENT_HEIGHT);
+            const clickedComp = components.find(c => {
+                const height = getComponentHeight(c);
+                return mx > c.x && mx < c.x + COMPONENT_WIDTH && my > c.y && my < c.y + height;
+            });
             if (clickedComp) {
                 const template = componentTemplates[clickedComp.type];
                 if (template.inputs.length > 0 && template.outputs.length > 0) { clickedComp.flipped = !clickedComp.flipped; draw(); }

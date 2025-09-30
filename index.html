@@ -65,10 +65,17 @@
              @apply px-2 py-1 text-xs font-medium rounded-md transition;
         }
         .speed-btn-active {
-            @apply bg-blue-600 text-white shadow-lg ring-2 ring-offset-1 ring-blue-500;
+            background-color: #2563eb; /* bg-blue-600 */
+            color: white;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            transform: scale(1.05);
         }
         .speed-btn-inactive {
-            @apply bg-gray-200 text-gray-700 hover:bg-gray-300;
+            background-color: #e5e7eb; /* bg-gray-200 */
+            color: #374151; /* text-gray-700 */
+        }
+        .speed-btn-inactive:hover {
+             background-color: #d1d5db; /* hover:bg-gray-300 */
         }
         .tab-btn {
             @apply px-4 py-2 text-sm font-medium text-gray-500 border-b-2 border-transparent hover:text-gray-700 hover:border-gray-300;
@@ -262,7 +269,7 @@
         const componentTemplates = {
             'Caldeira': { category: 'Produção', color: '#22c55e', params: { potencia: 100000, tempSaida: 80, rendimento: 0.9, potEletrica: 200, fuelType: 'Gás Natural', perdaCarga: 5 }, inputs: ['entrada'], outputs: ['saida'] },
             'Bomba de Calor': { category: 'Produção', color: '#16a34a', params: { potencia: 25000, COP: 4.0, perdaCarga: 5 }, inputs: ['entrada'], outputs: ['saida'] },
-            'Chiller': { category: 'Produção', color: '#0ea5e9', params: { potencia: 50000, EER: 3.5, perdaCarga: 5 }, inputs: ['entrada'], outputs: ['saida'] },
+            'Chiller': { category: 'Produção', color: '#0ea5e9', params: { potencia: 50000, EER: 3.5, perdaCarga: 5, tempSaida: 7 }, inputs: ['entrada'], outputs: ['saida'] },
             'Produtor Genérico': { category: 'Produção', color: '#f43f5e', params: { potencia: 10000, cargaVariavel: false, perfilDiario: '', perfilAnual: '', energySource: 'Eletricidade', perdaCarga: 5 }, inputs: ['entrada'], outputs: ['saida'] },
             'Bomba': { category: 'Impulsão', color: '#3b82f6', params: { caudal: 2.0, potEletrica: 500, alturaManometrica: 100 }, inputs: ['entrada'], outputs: ['saida'] },
             'Tubo': { category: 'Distribuição', color: '#64748b', params: { comprimento: 10, perdaTermica: 0.5, perdaCarga: 2 }, inputs: ['entrada'], outputs: ['saida'] },
@@ -271,7 +278,7 @@
             'Coletor': { category: 'Distribuição', color: '#78716c', params: { numEntradas: 2, numSaidas: 2, perdaCarga: 1 }, inputs: ['in1', 'in2'], outputs: ['out1', 'out2'] },
             'Válvula de Regulação': { category: 'Distribuição', color: '#eab308', params: { abertura: 100, perdaCarga: 2 }, inputs: ['entrada'], outputs: ['saida'] },
             'Radiador': { category: 'Consumo', color: '#ef4444', params: { potencia: 5000, cargaVariavel: false, perfilDiario: '', perfilAnual: '', perdaCarga: 10 }, inputs: ['entrada'], outputs: ['saida'] },
-            'Unidade de Tratamento de Ar': { category: 'Consumo', color: '#dc2626', params: { potencia: 20000, cargaVariavel: false, perfilDiario: '', perfilAnual: '', perdaCarga: 10 }, inputs: ['entrada'], outputs: ['saida'] },
+            'Unidade de Tratamento de Ar': { category: 'Consumo', color: '#dc2626', params: { potencia: 20000, potEletrica: 1500, cargaVariavel: false, perfilDiario: '', perfilAnual: '', perdaCarga: 10 }, inputs: ['entrada'], outputs: ['saida'] },
             'Carga Genérica': { category: 'Consumo', color: '#be123c', params: { potencia: 15000, cargaVariavel: false, perfilDiario: '', perfilAnual: '', perdaCarga: 10 }, inputs: ['entrada'], outputs: ['saida'] },
             'Acumulador': { category: 'Acumulação', color: '#f97316', params: { volume: 500, perdaCarga: 3 }, inputs: ['entrada'], outputs: ['saida'] }
         };
@@ -401,7 +408,7 @@
             } else {
                 messageBox.classList.add('bg-yellow-100', 'border-yellow-400', 'text-yellow-700');
             }
-            setTimeout(() => { messageBox.classList.add('hidden'); }, 3000);
+            setTimeout(() => { messageBox.classList.add('hidden'); }, 4000);
         }
 
         function getComponentConnectors(comp, type) {
@@ -671,7 +678,7 @@
 
         function deleteComponent(compId) {
             components = components.filter(c => c.id !== compId);
-            connections = connections.filter(c => c.from.id !== compId && c.to.id !== compId);
+            connections = connections.filter(c => c.id !== compId);
             hidePropertiesPanel();
             draw();
         }
@@ -680,21 +687,20 @@
             const container = document.getElementById('data-table-container');
             
             // Table 1: Energy Consumption
-            let consumptionTableHTML = `<h3 class="text-lg font-semibold mb-2 text-gray-800">Consumos de Energia por Equipamento (Resultados da Simulação)</h3>
+            let consumptionTableHTML = `<h3 class="text-lg font-semibold mb-2 text-gray-800">Consumos Anuais de Energia por Equipamento (Resultados da Simulação Dinâmica)</h3>
                 <table><thead><tr>
-                    <th>ID</th><th>Tipo</th><th>Potência Térmica (kW)</th>
+                    <th>ID</th><th>Tipo</th>
                     <th>Eletricidade (kWh)</th><th>Gás Natural (kWh)</th><th>Propano (kWh)</th>
                 </tr></thead><tbody>`;
 
             components.forEach(comp => {
-                const res = comp.results;
+                const totals = comp.totalConsumptions || { eletrico: 0, gasNatural: 0, propano: 0 };
                 consumptionTableHTML += `<tr>
                     <td>${comp.id}</td>
                     <td class="font-bold">${comp.type}</td>
-                    <td>${res.potencia !== null ? (res.potencia / 1000).toFixed(1) : '--'}</td>
-                    <td>${res.consumoEletrico !== null ? (res.consumoEletrico / 1000).toFixed(2) : '0.00'}</td>
-                    <td>${res.consumoGasNatural !== null ? (res.consumoGasNatural / 1000).toFixed(2) : '0.00'}</td>
-                    <td>${res.consumoPropano !== null ? (res.consumoPropano / 1000).toFixed(2) : '0.00'}</td>
+                    <td>${(totals.eletrico / 1000).toFixed(2)}</td>
+                    <td>${(totals.gasNatural / 1000).toFixed(2)}</td>
+                    <td>${(totals.propano / 1000).toFixed(2)}</td>
                 </tr>`;
             });
             consumptionTableHTML += '</tbody></table>';
@@ -1038,13 +1044,23 @@
                             break;
                         }
                         case 'Válvula de Regulação': comp.results.tempSaida = currentTemp; comp.results.potencia = 0; break;
-                        case 'Radiador': case 'Unidade de Tratamento de Ar': case 'Carga Genérica': case 'Permutador': {
+                        case 'Radiador': case 'Carga Genérica': case 'Permutador': {
                             let potenciaConsumo = comp.params.potencia;
                             if (!comp.type.includes('Permutador') && dynamicSimState.running && comp.params.cargaVariavel && comp.params.perfilArray?.length === 8760) {
                                 potenciaConsumo = comp.params.perfilArray[dynamicSimState.hour - 1] || 0;
                             }
                             comp.results.tempSaida = currentTemp - (potenciaConsumo / (caudal * SPECIFIC_HEAT_WATER));
                             comp.results.potencia = -potenciaConsumo; 
+                            break;
+                        }
+                        case 'Unidade de Tratamento de Ar': {
+                            let potenciaConsumo = comp.params.potencia;
+                            if (dynamicSimState.running && comp.params.cargaVariavel && comp.params.perfilArray?.length === 8760) {
+                                potenciaConsumo = comp.params.perfilArray[dynamicSimState.hour - 1] || 0;
+                            }
+                            comp.results.tempSaida = currentTemp - (potenciaConsumo / (caudal * SPECIFIC_HEAT_WATER));
+                            comp.results.potencia = -potenciaConsumo;
+                            comp.results.consumoEletrico = comp.params.potEletrica;
                             break;
                         }
                         case 'Acumulador': case 'Depósito de Inércia': case 'Coletor':
@@ -1115,6 +1131,13 @@
             dynamicSimState.monthlyGasNatural.fill(0);
             dynamicSimState.monthlyPropano.fill(0);
 
+            components.forEach(c => {
+                if (!c.totalConsumptions) c.totalConsumptions = {};
+                c.totalConsumptions.eletrico = 0;
+                c.totalConsumptions.gasNatural = 0;
+                c.totalConsumptions.propano = 0;
+            });
+
             if(clearUI) {
                 dynamicTimeDisplay.textContent = `Hora: 0 H`;
                 totalTermicaDisplay.textContent = `0.0 kWh`;
@@ -1152,9 +1175,18 @@
                 if (componentTemplates[comp.type].category === 'Consumo') {
                     consumoTermicoHora += potTermica;
                 }
-                consumoEletricoHora += comp.results.consumoEletrico || 0;
-                consumoGasNaturalHora += comp.results.consumoGasNatural || 0;
-                consumoPropanoHora += comp.results.consumoPropano || 0;
+                
+                const compConsumoEletrico = comp.results.consumoEletrico || 0;
+                const compConsumoGasNatural = comp.results.consumoGasNatural || 0;
+                const compConsumoPropano = comp.results.consumoPropano || 0;
+
+                comp.totalConsumptions.eletrico += compConsumoEletrico;
+                comp.totalConsumptions.gasNatural += compConsumoGasNatural;
+                comp.totalConsumptions.propano += compConsumoPropano;
+                
+                consumoEletricoHora += compConsumoEletrico;
+                consumoGasNaturalHora += compConsumoGasNatural;
+                consumoPropanoHora += compConsumoPropano;
             });
             
             dynamicSimState.totalTermica += consumoTermicoHora;
@@ -1363,7 +1395,8 @@
                 const newComp = {
                     id: nextId++, type: type, x: x, y: y, flipped: false,
                     params: JSON.parse(JSON.stringify(template.params)),
-                    results: { caudal: null, tempEntrada: null, tempSaida: null, potencia: null }
+                    results: { caudal: null, tempEntrada: null, tempSaida: null, potencia: null },
+                    totalConsumptions: { eletrico: 0, gasNatural: 0, propano: 0 }
                 };
                 if (type === 'Coletor') {
                     updateColetorConnectors(newComp);

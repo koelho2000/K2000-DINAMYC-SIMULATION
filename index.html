@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simulador de Central Térmica - KOELHO2000</title>
+    <title>Simulador de Central Térmica (Estilo Modelica)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -65,7 +65,7 @@
              @apply px-2 py-1 text-xs font-medium rounded-md transition;
         }
         .speed-btn-active {
-            @apply bg-blue-600 text-white;
+            @apply bg-blue-600 text-white shadow-lg ring-2 ring-offset-1 ring-blue-500;
         }
         .speed-btn-inactive {
             @apply bg-gray-200 text-gray-700 hover:bg-gray-300;
@@ -160,7 +160,7 @@
 
     <!-- Data Table Modal -->
     <div id="table-modal" class="hidden fixed inset-0 z-30 flex items-center justify-center p-4">
-        <div class="bg-white rounded-lg shadow-2xl w-full max-w-6xl max-h-[80vh] flex flex-col">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-7xl max-h-[80vh] flex flex-col">
             <header class="p-4 border-b flex justify-between items-center">
                 <h2 class="text-xl font-bold text-gray-700">Tabela de Equipamentos e Dados</h2>
                 <button id="close-table-modal-btn" class="text-gray-400 hover:text-gray-600 text-2xl font-bold">&times;</button>
@@ -253,7 +253,7 @@
     <script type="module">
         // --- CONFIGURAÇÃO E CONSTANTES ---
         const COMPONENT_WIDTH = 150;
-        const COMPONENT_HEIGHT = 80;
+        const COMPONENT_HEIGHT = 95; // Increased height
         const CONNECTOR_RADIUS = 8;
         const SPECIFIC_HEAT_WATER = 4186; // J/kg°C
         const GRID_SIZE = 20;
@@ -414,7 +414,7 @@
 
         function drawComponent(comp) {
             const template = componentTemplates[comp.type];
-            const height = getComponentHeight(comp); // Get dynamic height
+            const height = getComponentHeight(comp);
             ctx.fillStyle = 'white';
             ctx.strokeStyle = template.color;
             if (comp === selectedComponent) {
@@ -429,22 +429,24 @@
             ctx.fillText(comp.type, comp.x + COMPONENT_WIDTH / 2, comp.y + 12);
 
             ctx.fillStyle = '#334155';
-            ctx.font = '12px Inter';
+            ctx.font = '11px Inter';
             
             if (comp.type === 'Bomba') {
                 const caudal = comp.results.caudal !== null ? `${comp.results.caudal.toFixed(2)} kg/s` : '--';
                 const altura = comp.params.alturaManometrica;
                 const potEletrica = (comp.params.potEletrica / 1000).toFixed(2);
                 ctx.fillText(caudal, comp.x + COMPONENT_WIDTH / 2, comp.y + 40);
-                ctx.fillText(`Altura: ${altura} kPa`, comp.x + COMPONENT_WIDTH / 2, comp.y + 55);
-                ctx.fillText(`P.Elétrica: ${potEletrica} kW`, comp.x + COMPONENT_WIDTH / 2, comp.y + 70);
+                ctx.fillText(`Altura: ${altura} kPa`, comp.x + COMPONENT_WIDTH / 2, comp.y + 58);
+                ctx.fillText(`P.Elétrica: ${potEletrica} kW`, comp.x + COMPONENT_WIDTH / 2, comp.y + 76);
             } else {
                 const caudal = comp.results.caudal !== null ? `${comp.results.caudal.toFixed(2)} kg/s` : '--';
                 const temp = comp.results.tempSaida !== null ? `${comp.results.tempSaida.toFixed(1)}°C` : '--';
                 const pot = comp.results.potencia !== null ? `${(comp.results.potencia / 1000).toFixed(1)} kW` : '--';
-                ctx.fillText(caudal, comp.x + COMPONENT_WIDTH / 2, comp.y + 40);
-                ctx.fillText(temp, comp.x + COMPONENT_WIDTH / 2, comp.y + 55);
-                ctx.fillText(pot, comp.x + COMPONENT_WIDTH / 2, comp.y + 70);
+                const perdaCarga = comp.params.hasOwnProperty('perdaCarga') ? `${comp.params.perdaCarga} kPa` : '--';
+                ctx.fillText(caudal, comp.x + COMPONENT_WIDTH / 2, comp.y + 38);
+                ctx.fillText(temp, comp.x + COMPONENT_WIDTH / 2, comp.y + 53);
+                ctx.fillText(pot, comp.x + COMPONENT_WIDTH / 2, comp.y + 68);
+                ctx.fillText(`ΔP: ${perdaCarga}`, comp.x + COMPONENT_WIDTH / 2, comp.y + 83);
             }
 
             drawConnectors(comp);
@@ -452,7 +454,7 @@
 
         function getConnectorPos(comp, type, name) {
             const connectors = getComponentConnectors(comp, type);
-            const height = getComponentHeight(comp); // Get dynamic height
+            const height = getComponentHeight(comp);
             const index = connectors.indexOf(name);
             if (index === -1) return { x: comp.x, y: comp.y };
             const total = connectors.length;
@@ -676,14 +678,17 @@
 
         function showDataTable() {
             const container = document.getElementById('data-table-container');
-            let tableHTML = `<table><thead><tr>
-                <th>ID</th><th>Tipo</th><th>Potência (kW)</th>
-                <th>Eletricidade (kWh)</th><th>Gás Natural (kWh)</th><th>Propano (kWh)</th>
-            </tr></thead><tbody>`;
+            
+            // Table 1: Energy Consumption
+            let consumptionTableHTML = `<h3 class="text-lg font-semibold mb-2 text-gray-800">Consumos de Energia por Equipamento (Resultados da Simulação)</h3>
+                <table><thead><tr>
+                    <th>ID</th><th>Tipo</th><th>Potência Térmica (kW)</th>
+                    <th>Eletricidade (kWh)</th><th>Gás Natural (kWh)</th><th>Propano (kWh)</th>
+                </tr></thead><tbody>`;
 
             components.forEach(comp => {
                 const res = comp.results;
-                tableHTML += `<tr>
+                consumptionTableHTML += `<tr>
                     <td>${comp.id}</td>
                     <td class="font-bold">${comp.type}</td>
                     <td>${res.potencia !== null ? (res.potencia / 1000).toFixed(1) : '--'}</td>
@@ -692,8 +697,33 @@
                     <td>${res.consumoPropano !== null ? (res.consumoPropano / 1000).toFixed(2) : '0.00'}</td>
                 </tr>`;
             });
-            tableHTML += '</tbody></table>';
-            container.innerHTML = tableHTML;
+            consumptionTableHTML += '</tbody></table>';
+
+            // Table 2: Equipment Characteristics
+            let characteristicsTableHTML = `<h3 class="text-lg font-semibold mt-6 mb-2 text-gray-800">Características dos Equipamentos</h3>
+                <table><thead><tr>
+                    <th>ID</th><th>Tipo</th><th>Parâmetros</th>
+                </tr></thead><tbody>`;
+
+            const paramFilter = ['perfilDiario', 'perfilAnual', 'perfilArray'];
+            components.forEach(comp => {
+                const params = Object.entries(comp.params)
+                    .filter(([key]) => !paramFilter.includes(key))
+                    .map(([key, value]) => {
+                        const formattedKey = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
+                        return `<strong>${formattedKey}:</strong> ${value}`;
+                    })
+                    .join('<br>');
+                    
+                characteristicsTableHTML += `<tr>
+                    <td>${comp.id}</td>
+                    <td class="font-bold">${comp.type}</td>
+                    <td>${params}</td>
+                </tr>`;
+            });
+            characteristicsTableHTML += '</tbody></table>';
+
+            container.innerHTML = consumptionTableHTML + characteristicsTableHTML;
             tableModal.classList.remove('hidden');
         }
 
@@ -884,26 +914,38 @@
             if (pumps.length === 0) errors.push('É necessário pelo menos um equipamento de "Impulsão" (Bomba).');
             if (consumers.length === 0) errors.push('É necessário pelo menos um equipamento de "Consumo".');
             
-            if (producers.length > 0) {
-                const startNode = producers[0];
-                let currentNode = startNode;
-                let pathFound = false;
-                for (let i = 0; i <= components.length; i++) { // Use <= to detect loops
-                    if (i > 0 && currentNode.id === startNode.id) {
-                        pathFound = true;
-                        break;
-                    }
-                    if (i === components.length) break; // Prevent infinite loop on broken circuits
-                    
-                    const connection = connections.find(c => c.from.id === currentNode.id);
-                    if (!connection) break;
-                    
-                    const nextNode = components.find(c => c.id === connection.to.id);
-                    if (!nextNode) break;
-                    
-                    currentNode = nextNode;
+            // Thermal Power Check
+            const totalProductionPower = producers.reduce((sum, comp) => sum + comp.params.potencia, 0);
+            const totalConsumptionPower = consumers.reduce((sum, comp) => sum + comp.params.potencia, 0);
+            if (totalProductionPower < totalConsumptionPower) {
+                errors.push(`Potência de produção nominal insuficiente. Produção: ${(totalProductionPower/1000).toFixed(1)} kW, Consumo: ${(totalConsumptionPower/1000).toFixed(1)} kW.`);
+            }
+
+            // Hydraulic & Closed Loop Check
+            if (producers.length > 0 && pumps.length > 0) {
+                 const simulationOrder = [], visited = new Set();
+                let currentComp = producers[0];
+                while (currentComp && !visited.has(currentComp.id)) {
+                    simulationOrder.push(currentComp); 
+                    visited.add(currentComp.id);
+                    let connection;
+                    if (currentComp.type === 'Permutador') { connection = connections.find(c => c.from.id === currentComp.id && c.from.connector === 'primario_out'); }
+                    else if (currentComp.type === 'Coletor') { connection = connections.find(c => c.from.id === currentComp.id && c.from.connector === 'out1'); }
+                    else { connection = connections.find(c => c.from.id === currentComp.id); }
+                    currentComp = connection ? components.find(c => c.id === connection.to.id) : null;
                 }
-                if (!pathFound) errors.push('O circuito não está fechado. O último equipamento deve ligar-se ao primeiro equipamento de produção.');
+
+                if (currentComp && currentComp.id === producers[0].id) { // Path is a closed loop
+                    const pumpInCircuit = simulationOrder.find(c => c.type === 'Bomba');
+                    if(pumpInCircuit){
+                        const totalPressureDrop = simulationOrder.reduce((sum, comp) => sum + (comp.params.perdaCarga || 0), 0);
+                        if (totalPressureDrop > pumpInCircuit.params.alturaManometrica) {
+                            errors.push(`Altura manométrica da bomba insuficiente. Bomba: ${pumpInCircuit.params.alturaManometrica} kPa, Perda de Carga do Circuito: ${totalPressureDrop.toFixed(1)} kPa.`);
+                        }
+                    }
+                } else {
+                     errors.push('O circuito não está fechado. O último equipamento deve ligar-se ao primeiro equipamento de produção.');
+                }
             }
             return errors;
         }
@@ -1023,14 +1065,7 @@
              }
 
             steadyResultsAvailable = true;
-
-            if(!isDynamicStep) {
-                const totalPerdaCarga = simulationOrder.reduce((sum, comp) => sum + (comp.params.perdaCarga || 0), 0);
-                if (pump && totalPerdaCarga > pump.params.alturaManometrica) {
-                    showMessage(`Aviso Hidráulico: Perda de carga (${totalPerdaCarga.toFixed(1)} kPa) > Altura da bomba (${pump.params.alturaManometrica} kPa)`, true);
-                }
-                draw();
-            }
+            if(!isDynamicStep) draw();
         }
 
         function startDynamicSimulation() {

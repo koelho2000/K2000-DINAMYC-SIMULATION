@@ -268,9 +268,10 @@
         // --- DEFINIÇÃO DOS COMPONENTES ---
         const componentTemplates = {
             'Caldeira': { category: 'Produção', color: '#22c55e', params: { potencia: 100000, tempSaida: 80, rendimento: 0.9, potEletrica: 200, fuelType: 'Gás Natural', perdaCarga: 5 }, inputs: ['entrada'], outputs: ['saida'] },
-            'Bomba de Calor': { category: 'Produção', color: '#16a34a', params: { potencia: 25000, COP: 4.0, perdaCarga: 5 }, inputs: ['entrada'], outputs: ['saida'] },
+            'Bomba de Calor': { category: 'Produção', color: '#16a34a', params: { potencia: 25000, tempSaida: 55, COP: 4.0, perdaCarga: 5 }, inputs: ['entrada'], outputs: ['saida'] },
             'Chiller': { category: 'Produção', color: '#0ea5e9', params: { potencia: 50000, EER: 3.5, perdaCarga: 5, tempSaida: 7 }, inputs: ['entrada'], outputs: ['saida'] },
-            'Produtor Genérico': { category: 'Produção', color: '#f43f5e', params: { potencia: 10000, cargaVariavel: false, perfilDiario: '', perfilAnual: '', energySource: 'Eletricidade', perdaCarga: 5 }, inputs: ['entrada'], outputs: ['saida'] },
+            'Produtor Gen. (Aquecimento)': { category: 'Produção', color: '#f43f5e', params: { potencia: 10000, tempSaida: 60, cargaVariavel: false, perfilDiario: '', perfilAnual: '', energySource: 'Eletricidade', perdaCarga: 5 }, inputs: ['entrada'], outputs: ['saida'] },
+            'Produtor Gen. (Arrefecimento)': { category: 'Produção', color: '#38bdf8', params: { potencia: 10000, tempSaida: 7, cargaVariavel: false, perfilDiario: '', perfilAnual: '', energySource: 'Eletricidade', perdaCarga: 5 }, inputs: ['entrada'], outputs: ['saida'] },
             'Bomba': { category: 'Impulsão', color: '#3b82f6', params: { caudal: 2.0, potEletrica: 500, alturaManometrica: 100 }, inputs: ['entrada'], outputs: ['saida'] },
             'Tubo': { category: 'Distribuição', color: '#64748b', params: { comprimento: 10, perdaTermica: 0.5, perdaCarga: 2 }, inputs: ['entrada'], outputs: ['saida'] },
             'Depósito de Inércia': { category: 'Distribuição', color: '#a855f7', params: { volume: 500, perdaCarga: 3 }, inputs: ['entrada'], outputs: ['saida'] },
@@ -579,7 +580,7 @@
                 </select></div>`;
             }
 
-            if(comp.type === 'Produtor Genérico') {
+            if(comp.type === 'Produtor Gen. (Aquecimento)' || comp.type === 'Produtor Gen. (Arrefecimento)') {
                  content += `<div><label for="param-energySource" class="block text-sm font-medium text-gray-700">Fonte de Energia</label>
                 <select id="param-energySource" class="param-input mt-1">
                     <option value="Eletricidade" ${comp.params.energySource === 'Eletricidade' ? 'selected' : ''}>Eletricidade</option>
@@ -678,7 +679,7 @@
 
         function deleteComponent(compId) {
             components = components.filter(c => c.id !== compId);
-            connections = connections.filter(c => c.id !== compId);
+            connections = connections.filter(c => c.from.id !== compId && c.to.id !== compId);
             hidePropertiesPanel();
             draw();
         }
@@ -916,45 +917,63 @@
             const pumps = components.filter(c => componentTemplates[c.type].category === 'Impulsão');
             const consumers = components.filter(c => componentTemplates[c.type].category === 'Consumo');
 
-            if (producers.length === 0) errors.push('É necessário pelo menos um equipamento de "Produção".');
-            if (pumps.length === 0) errors.push('É necessário pelo menos um equipamento de "Impulsão" (Bomba).');
-            if (consumers.length === 0) errors.push('É necessário pelo menos um equipamento de "Consumo".');
-            
-            // Thermal Power Check
+            if (producers.length === 0) { errors.push('É necessário pelo menos um equipamento de "Produção".'); }
+            if (pumps.length === 0) { errors.push('É necessário pelo menos um equipamento de "Impulsão" (Bomba).'); }
+            if (consumers.length === 0) { errors.push('É necessário pelo menos um equipamento de "Consumo".'); }
+
+            if (errors.length > 0) return errors;
+
+            // Pre-calculate thermal and hydraulic balance
             const totalProductionPower = producers.reduce((sum, comp) => sum + comp.params.potencia, 0);
             const totalConsumptionPower = consumers.reduce((sum, comp) => sum + comp.params.potencia, 0);
             if (totalProductionPower < totalConsumptionPower) {
                 errors.push(`Potência de produção nominal insuficiente. Produção: ${(totalProductionPower/1000).toFixed(1)} kW, Consumo: ${(totalConsumptionPower/1000).toFixed(1)} kW.`);
             }
 
-            // Hydraulic & Closed Loop Check
-            if (producers.length > 0 && pumps.length > 0) {
-                 const simulationOrder = [], visited = new Set();
-                let currentComp = producers[0];
-                while (currentComp && !visited.has(currentComp.id)) {
-                    simulationOrder.push(currentComp); 
-                    visited.add(currentComp.id);
-                    let connection;
-                    if (currentComp.type === 'Permutador') { connection = connections.find(c => c.from.id === currentComp.id && c.from.connector === 'primario_out'); }
-                    else if (currentComp.type === 'Coletor') { connection = connections.find(c => c.from.id === currentComp.id && c.from.connector === 'out1'); }
-                    else { connection = connections.find(c => c.from.id === currentComp.id); }
-                    currentComp = connection ? components.find(c => c.id === connection.to.id) : null;
+            const simulationOrder = [], visited = new Set();
+            let currentComp = producers[0];
+            while (currentComp && !visited.has(currentComp.id)) {
+                simulationOrder.push(currentComp);
+                visited.add(currentComp.id);
+                let connection;
+                if (currentComp.type === 'Permutador') { connection = connections.find(c => c.from.id === currentComp.id && c.from.connector === 'primario_out'); }
+                else if (currentComp.type === 'Coletor') { connection = connections.find(c => c.from.id === currentComp.id && c.from.connector === 'out1'); }
+                else { connection = connections.find(c => c.from.id === currentComp.id); }
+                currentComp = connection ? components.find(c => c.id === connection.to.id) : null;
+            }
+
+            if (!currentComp || currentComp.id !== producers[0].id) {
+                errors.push('O circuito não está fechado. O último equipamento deve ligar-se ao primeiro equipamento de produção.');
+            } else {
+                const pumpInCircuit = simulationOrder.find(c => c.type === 'Bomba');
+                const totalPressureDrop = simulationOrder.reduce((sum, comp) => sum + (comp.params.perdaCarga || 0), 0);
+                if (pumpInCircuit && totalPressureDrop > pumpInCircuit.params.alturaManometrica) {
+                    errors.push(`Altura manométrica da bomba insuficiente. Bomba: ${pumpInCircuit.params.alturaManometrica} kPa, Perda de Carga: ${totalPressureDrop.toFixed(1)} kPa.`);
                 }
 
-                if (currentComp && currentComp.id === producers[0].id) { // Path is a closed loop
-                    const pumpInCircuit = simulationOrder.find(c => c.type === 'Bomba');
-                    if(pumpInCircuit){
-                        const totalPressureDrop = simulationOrder.reduce((sum, comp) => sum + (comp.params.perdaCarga || 0), 0);
-                        if (totalPressureDrop > pumpInCircuit.params.alturaManometrica) {
-                            errors.push(`Altura manométrica da bomba insuficiente. Bomba: ${pumpInCircuit.params.alturaManometrica} kPa, Perda de Carga do Circuito: ${totalPressureDrop.toFixed(1)} kPa.`);
-                        }
+                if (pumpInCircuit && pumpInCircuit.params.caudal > 0) {
+                    const totalThermalLoad = simulationOrder
+                        .filter(c => componentTemplates[c.type].category === 'Consumo')
+                        .reduce((sum, c) => sum + c.params.potencia, 0);
+
+                    const deltaT = totalThermalLoad / (pumpInCircuit.params.caudal * SPECIFIC_HEAT_WATER);
+                    const producer = simulationOrder[0];
+                    const estimatedReturnTemp = producer.params.tempSaida - deltaT;
+                    
+                    const isHeatingSystem = producer.type === 'Caldeira' || producer.type === 'Bomba de Calor' || producer.type === 'Produtor Gen. (Aquecimento)';
+                    const isCoolingSystem = producer.type === 'Chiller' || producer.type === 'Produtor Gen. (Arrefecimento)';
+
+                    if (isHeatingSystem && estimatedReturnTemp > producer.params.tempSaida) {
+                        errors.push(`Temperatura de retorno estimada (${estimatedReturnTemp.toFixed(1)}°C) é superior à de saída (${producer.params.tempSaida}°C). Verifique o caudal e as potências.`);
                     }
-                } else {
-                     errors.push('O circuito não está fechado. O último equipamento deve ligar-se ao primeiro equipamento de produção.');
+                    if (isCoolingSystem && estimatedReturnTemp < producer.params.tempSaida) {
+                         errors.push(`Temperatura de retorno estimada (${estimatedReturnTemp.toFixed(1)}°C) é inferior à de saída (${producer.params.tempSaida}°C). Verifique o caudal e as potências.`);
+                    }
                 }
             }
             return errors;
         }
+
 
         function showValidationWarning(errors) {
             validationErrorsList.innerHTML = errors.map(e => `<li>${e}</li>`).join('');
@@ -1023,13 +1042,25 @@
                             if (effectiveCoolingPower > 0 && effectiveEER > 0) comp.results.consumoEletrico = effectiveCoolingPower / effectiveEER;
                             break;
                         }
-                        case 'Produtor Genérico': {
+                        case 'Produtor Gen. (Aquecimento)': {
                             let potenciaConsumo = comp.params.potencia;
                              if (dynamicSimState.running && comp.params.cargaVariavel && comp.params.perfilArray?.length === 8760) {
                                 potenciaConsumo = comp.params.perfilArray[dynamicSimState.hour - 1] || 0;
                             }
                             comp.results.tempSaida = currentTemp + (potenciaConsumo / (caudal * SPECIFIC_HEAT_WATER));
                             comp.results.potencia = potenciaConsumo;
+                            if (comp.params.energySource === 'Eletricidade') comp.results.consumoEletrico = potenciaConsumo;
+                            else if (comp.params.energySource === 'Gás Natural') comp.results.consumoGasNatural = potenciaConsumo;
+                            else if (comp.params.energySource === 'Propano') comp.results.consumoPropano = potenciaConsumo;
+                            break;
+                        }
+                        case 'Produtor Gen. (Arrefecimento)': {
+                            let potenciaConsumo = comp.params.potencia;
+                             if (dynamicSimState.running && comp.params.cargaVariavel && comp.params.perfilArray?.length === 8760) {
+                                potenciaConsumo = comp.params.perfilArray[dynamicSimState.hour - 1] || 0;
+                            }
+                            comp.results.tempSaida = currentTemp - (potenciaConsumo / (caudal * SPECIFIC_HEAT_WATER));
+                            comp.results.potencia = -potenciaConsumo;
                             if (comp.params.energySource === 'Eletricidade') comp.results.consumoEletrico = potenciaConsumo;
                             else if (comp.params.energySource === 'Gás Natural') comp.results.consumoGasNatural = potenciaConsumo;
                             else if (comp.params.energySource === 'Propano') comp.results.consumoPropano = potenciaConsumo;

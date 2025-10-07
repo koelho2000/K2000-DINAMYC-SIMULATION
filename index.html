@@ -7,6 +7,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Ícones do Font Awesome para elementos visuais -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css" integrity="sha512-C4Ycvd3pdmGu6IhJvl0T+9j2SKdwZk9ZFCXX0O6cw4XgFQFkgxDbYReUZ3U6jQDbPUaiXe6dgi2GZHVtZF2QdA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -30,35 +32,35 @@
         .param-input {
             @apply w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm;
         }
-        #table-modal, #validation-modal, #chart-modal, #variable-load-modal {
+        #table-modal, #validation-modal, #chart-modal, #variable-load-modal, #templates-modal, #connectors-modal {
             background-color: rgba(0, 0, 0, 0.5);
             transition: opacity 0.3s ease;
         }
-        #data-table-container table {
+        #data-table-container table, #connectors-table-container table {
             width: 100%;
             text-align: left;
             font-size: 0.875rem; /* text-sm */
             color: #6b7280; /* text-gray-500 */
             border-collapse: collapse;
         }
-        #data-table-container th, #data-table-container td {
+        #data-table-container th, #data-table-container td, #connectors-table-container th, #connectors-table-container td {
             padding: 0.75rem; /* p-3 */
             border: 1px solid #9ca3af; /* border-gray-400 */
         }
-        #data-table-container th {
+        #data-table-container th, #connectors-table-container th {
             font-size: 0.75rem; /* text-xs */
             font-weight: 600; /* font-semibold */
             color: white;
             text-transform: uppercase;
             background-color: #1f2937; /* bg-gray-800 */
         }
-        #data-table-container td {
+        #data-table-container td, #connectors-table-container td {
             color: #374151; /* text-gray-700 */
         }
-        #data-table-container tbody tr:nth-child(even) {
+        #data-table-container tbody tr:nth-child(even), #connectors-table-container tbody tr:nth-child(even) {
             background-color: #f9fafb; /* bg-gray-50 */
         }
-        #data-table-container tbody tr:hover {
+        #data-table-container tbody tr:hover, #connectors-table-container tbody tr:hover {
             background-color: #dbeafe; /* bg-blue-100 */
         }
         .speed-btn {
@@ -83,13 +85,60 @@
         .tab-btn-active {
             @apply text-blue-600 border-blue-600;
         }
+
+        /* Estilo para o cartão de introdução e instruções */
+        .intro-card {
+            background-color: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05);
+        }
+        .intro-card h2 {
+            display: flex;
+            align-items: center;
+            font-weight: 600;
+            font-size: 1.125rem;
+            color: #1f2937; /* gray-800 */
+            margin-bottom: 0.5rem;
+        }
+        .intro-card p {
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+            color: #374151; /* gray-700 */
+            line-height: 1.4;
+        }
+        .intro-card ul {
+            list-style-type: disc;
+            padding-left: 1.5rem;
+            margin-top: 0.5rem;
+            color: #374151;
+        }
+        .intro-card li {
+            margin-bottom: 0.25rem;
+            font-size: 0.875rem;
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 flex flex-col h-screen overflow-hidden">
 
     <!-- Header -->
     <header class="bg-white shadow-md p-4 flex justify-between items-center z-20 flex-wrap gap-y-2">
-        <h1 class="text-2xl font-bold text-gray-700 mr-6">Simulador de Central Térmica</h1>
+        <div class="flex items-center">
+            <h1 class="text-2xl font-bold text-gray-700 mr-2">Simulador de Central Térmica</h1>
+            <!-- Ícone de informação com tooltip -->
+            <div class="relative group">
+                <i class="fa-solid fa-circle-question text-blue-500 cursor-pointer"></i>
+                <div class="absolute left-0 top-full mt-2 z-50 bg-white border border-gray-300 p-4 rounded-lg shadow-lg text-sm w-80 hidden group-hover:block">
+                    <p class="mb-2">Bem-vindo ao simulador de centrais térmicas. Esta aplicação interativa permite criar, ligar e analisar equipamentos de sistemas de climatização e aquecimento com um enfoque em parâmetros técnicos.</p>
+                    <ul class="list-disc pl-4 space-y-1">
+                        <li><strong>Modelação gráfica:</strong> arraste equipamentos da biblioteca para a área de trabalho e ligue-os de forma lógica através dos conectores.</li>
+                        <li><strong>Ajuste de parâmetros:</strong> selecione um equipamento para alterar potências, temperaturas, rendimentos, perdas de carga e outros valores essenciais diretamente no painel de propriedades.</li>
+                        <li><strong>Simulações:</strong> utilize os botões da barra superior para executar simulações em regime permanente (<em>Sim. Steady</em>) ou em regime dinâmico (<em>Sim. Dinâmica</em>), visualizando caudais, temperaturas e consumos ao longo do tempo.</li>
+                        <li><strong>Perfis de carga variável:</strong> para cargas de consumo, ative a opção de carga variável e defina perfis diários ou anuais de acordo com as necessidades do seu projeto.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
         <div class="flex items-center space-x-2 bg-gray-100 p-2 rounded-lg">
             <div class="text-center px-2">
                 <div class="text-xs font-semibold text-gray-500">ENERGIA TÉRMICA</div>
@@ -116,6 +165,8 @@
                 <label for="tempExterior" class="text-sm font-medium text-gray-700">Temp. Ext. (°C):</label>
                 <input type="number" id="tempExterior" value="10" class="w-20 p-1 border border-gray-300 rounded-md shadow-sm sm:text-sm">
             </div>
+            <button id="show-templates-btn" class="bg-green-500 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-green-600 transition duration-300">Templates</button>
+            <button id="show-nodes-btn" class="bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-indigo-600 transition duration-300">Verificar Nós</button>
             <button id="showTableBtn" class="bg-gray-500 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-gray-600 transition duration-300">Tabela</button>
             <button id="showChartBtn" class="bg-purple-500 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-purple-600 transition duration-300">Gráfico</button>
             <button id="simulateSteadyBtn" class="bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-blue-700 transition duration-300">Sim. Steady</button>
@@ -139,6 +190,18 @@
         </div>
     </header>
 
+    <!-- Seção de introdução e instruções oculta: substituída por ícone com tooltip -->
+    <section class="intro-card m-4 p-4 hidden" id="intro-section">
+        <h2><i class="fa-solid fa-circle-info text-blue-500 mr-2"></i>Sobre o simulador</h2>
+        <p>Bem-vindo ao simulador de centrais térmicas. Esta aplicação interativa permite criar, ligar e analisar equipamentos de sistemas de climatização e aquecimento com um enfoque em parâmetros técnicos.</p>
+        <ul>
+            <li><strong>Modelação gráfica:</strong> arraste equipamentos da biblioteca para a área de trabalho e ligue-os de forma lógica através dos conectores.</li>
+            <li><strong>Ajuste de parâmetros:</strong> selecione um equipamento para alterar potências, temperaturas, rendimentos, perdas de carga e outros valores essenciais diretamente no painel de propriedades.</li>
+            <li><strong>Simulações:</strong> utilize os botões da barra superior para executar simulações em regime permanente (<em>Sim. Steady</em>) ou em regime dinâmico (<em>Sim. Dinâmica</em>), visualizando caudais, temperaturas e consumos ao longo do tempo.</li>
+            <li><strong>Perfis de carga variável:</strong> para cargas de consumo, ative a opção de carga variável e defina perfis diários ou anuais de acordo com as necessidades do seu projeto.</li>
+        </ul>
+    </section>
+
     <!-- Main Content -->
     <div class="flex flex-1 overflow-hidden">
         <!-- Component Library -->
@@ -155,8 +218,12 @@
                     <strong class="font-bold">Aviso:</strong>
                     <span class="block sm:inline" id="message-text"></span>
                 </div>
+                <div class="absolute bottom-4 right-4 bg-white p-2 rounded-lg shadow-md border text-xs text-gray-600 space-y-1 z-10">
+                    <div class="flex items-center"><div class="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>Entrada</div>
+                    <div class="flex items-center"><div class="w-3 h-3 rounded-full bg-red-500 mr-2"></div>Saída</div>
+                </div>
             </div>
-             <p class="text-xs text-gray-500 text-center mt-2">Dica: Clique numa ligação ou equipamento e pressione a tecla 'Delete' para apagar.</p>
+             <p class="text-xs text-gray-500 text-center mt-2">Dica: Clique numa ligação ou equipamento e pressione 'Delete' para apagar. Dê um duplo clique numa ligação para adicionar um ponto.</p>
         </main>
         
         <!-- Properties Panel -->
@@ -186,6 +253,45 @@
             <main class="p-4 flex-1 relative">
                 <canvas id="chart-canvas"></canvas>
             </main>
+        </div>
+    </div>
+
+    <!-- Templates Modal -->
+    <div id="templates-modal" class="hidden fixed inset-0 z-30 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-md">
+            <header class="p-4 border-b flex justify-between items-center">
+                <h2 class="text-xl font-bold text-gray-700">Templates de Circuitos</h2>
+                <button id="close-templates-modal-btn" class="text-gray-400 hover:text-gray-600 text-2xl font-bold">&times;</button>
+            </header>
+            <main id="templates-list" class="p-4 space-y-2">
+                 <a href="#" class="block p-4 text-sm text-gray-700 hover:bg-gray-100 rounded-lg border" data-template="caldeira_radiador">
+                    <strong class="font-semibold text-base">1. Caldeira + Radiador</strong>
+                    <p class="text-xs text-gray-500 mt-1">Circuito simples de aquecimento com uma caldeira de 25 kW.</p>
+                 </a>
+                 <a href="#" class="block p-4 text-sm text-gray-700 hover:bg-gray-100 rounded-lg border" data-template="bc_uta">
+                    <strong class="font-semibold text-base">2. Bomba de Calor + UTA</strong>
+                     <p class="text-xs text-gray-500 mt-1">Circuito de aquecimento com bomba de calor e Unidade de Tratamento de Ar.</p>
+                </a>
+                 <a href="#" class="block p-4 text-sm text-gray-700 hover:bg-gray-100 rounded-lg border" data-template="chiller_uta">
+                    <strong class="font-semibold text-base">3. Chiller + UTA</strong>
+                    <p class="text-xs text-gray-500 mt-1">Circuito de arrefecimento com chiller e Unidade de Tratamento de Ar.</p>
+                </a>
+                 <a href="#" class="block p-4 text-sm text-gray-700 hover:bg-gray-100 rounded-lg border" data-template="coletor_paralelo">
+                    <strong class="font-semibold text-base">4. Circuito Paralelo com Coletor</strong>
+                    <p class="text-xs text-gray-500 mt-1">Circuito de aquecimento com 2 UTAs em paralelo.</p>
+                </a>
+            </main>
+        </div>
+    </div>
+
+    <!-- Connectors Table Modal -->
+    <div id="connectors-modal" class="hidden fixed inset-0 z-30 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[80vh] flex flex-col">
+            <header class="p-4 border-b flex justify-between items-center">
+                <h2 class="text-xl font-bold text-gray-700">Dados dos Nós de Ligação</h2>
+                <button id="close-connectors-modal-btn" class="text-gray-400 hover:text-gray-600 text-2xl font-bold">&times;</button>
+            </header>
+            <main id="connectors-table-container" class="p-4 overflow-y-auto"></main>
         </div>
     </div>
 
@@ -277,11 +383,23 @@
             'Depósito de Inércia': { category: 'Distribuição', color: '#a855f7', params: { volume: 500, perdaCarga: 3 }, inputs: ['entrada'], outputs: ['saida'] },
             'Permutador': { category: 'Distribuição', color: '#84cc16', params: { potencia: 15000, tipo: 'Placas', perdaCarga: 15 }, inputs: ['primario_in', 'secundario_in'], outputs: ['primario_out', 'secundario_out'] },
             'Coletor': { category: 'Distribuição', color: '#78716c', params: { numEntradas: 2, numSaidas: 2, perdaCarga: 1 }, inputs: ['in1', 'in2'], outputs: ['out1', 'out2'] },
-            'Válvula de Regulação': { category: 'Distribuição', color: '#eab308', params: { abertura: 100, perdaCarga: 2 }, inputs: ['entrada'], outputs: ['saida'] },
+            // Válvula de Regulação passa a utilizar um campo de caudal pretendido (kg/s) em vez de percentagem de abertura.
+            // O parâmetro 'caudalPretendido' define o caudal desejado pelo utilizador. Se o valor for 0 ou não definido,
+            // o caudal será calculado automaticamente com base no balanço de caudais do coletor a montante.
+            'Válvula de Regulação': { category: 'Distribuição', color: '#eab308', params: { caudalPretendido: 0, perdaCarga: 2 }, inputs: ['entrada'], outputs: ['saida'] },
             'Radiador': { category: 'Consumo', color: '#ef4444', params: { potencia: 5000, cargaVariavel: false, perfilDiario: '', perfilAnual: '', perdaCarga: 10 }, inputs: ['entrada'], outputs: ['saida'] },
             'Unidade de Tratamento de Ar': { category: 'Consumo', color: '#dc2626', params: { potencia: 20000, potEletrica: 1500, cargaVariavel: false, perfilDiario: '', perfilAnual: '', perdaCarga: 10 }, inputs: ['entrada'], outputs: ['saida'] },
             'Carga Genérica': { category: 'Consumo', color: '#be123c', params: { potencia: 15000, cargaVariavel: false, perfilDiario: '', perfilAnual: '', perdaCarga: 10 }, inputs: ['entrada'], outputs: ['saida'] },
             'Acumulador': { category: 'Acumulação', color: '#f97316', params: { volume: 500, perdaCarga: 3 }, inputs: ['entrada'], outputs: ['saida'] }
+        };
+
+        // Ícones por categoria para elementos da biblioteca
+        const categoryIcons = {
+            'Produção': 'fa-fire',
+            'Impulsão': 'fa-water',
+            'Distribuição': 'fa-network-wired',
+            'Consumo': 'fa-plug',
+            'Acumulação': 'fa-box-archive'
         };
 
         // --- ESTADO DA APLICAÇÃO ---
@@ -300,6 +418,9 @@
         let chartInstance = null;
         let loadChartInstance = null;
         let editingLoadComponent = null;
+        let draggingPoint = null;
+        let hoveredConnector = null;
+        let showNodeInfo = false;
 
         // --- SETUP DO CANVAS E DOM ---
         const canvas = document.getElementById('workspace'); const ctx = canvas.getContext('2d');
@@ -336,6 +457,13 @@
         const loadChartTitle = document.getElementById('load-chart-title');
         const dailyLoadTotalSpan = document.getElementById('daily-load-total');
         const annualLoadTotalSpan = document.getElementById('annual-load-total');
+        const templatesModal = document.getElementById('templates-modal');
+        const showTemplatesBtn = document.getElementById('show-templates-btn');
+        const closeTemplatesModalBtn = document.getElementById('close-templates-modal-btn');
+        const templatesList = document.getElementById('templates-list');
+        const showNodesBtn = document.getElementById('show-nodes-btn');
+        const connectorsModal = document.getElementById('connectors-modal');
+        const closeConnectorsModalBtn = document.getElementById('close-connectors-modal-btn');
         
         // --- HELPERS (TRANSFORMAÇÃO E GRELHA) ---
         function getComponentHeight(comp) {
@@ -362,15 +490,13 @@
             return `${day} ${month}`;
         }
 
-        function isPointOnBezier(point, p0, p1, p2, p3, threshold = 10) {
-            for (let t = 0; t <= 1; t += 0.02) {
-                const x = Math.pow(1 - t, 3) * p0.x + 3 * Math.pow(1 - t, 2) * t * p1.x + 3 * (1 - t) * t * t * p2.x + t * t * t * p3.x;
-                const y = Math.pow(1 - t, 3) * p0.y + 3 * Math.pow(1 - t, 2) * t * p1.y + 3 * (1 - t) * t * t * p2.y + t * t * t * p3.y;
-                if (Math.hypot(point.x - x, point.y - y) < threshold / viewTransform.scale) {
-                    return true;
-                }
-            }
-            return false;
+        function distToSegmentSquared(p, v, w) {
+            const l2 = (v.x - w.x)**2 + (v.y - w.y)**2;
+            if (l2 === 0) return (p.x - v.x)**2 + (p.y - v.y)**2;
+            let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+            t = Math.max(0, Math.min(1, t));
+            const projection = { x: v.x + t * (w.x - v.x), y: v.y + t * (w.y - v.y) };
+            return (p.x - projection.x)**2 + (p.y - projection.y)**2;
         }
 
         function drawGrid() {
@@ -495,26 +621,34 @@
         }
 
         function getBezierMidPoint(conn) {
-             const fromComp = components.find(c => c.id === conn.from.id), toComp = components.find(c => c.id === conn.to.id);
+            const fromComp = components.find(c => c.id === conn.from.id);
+            const toComp = components.find(c => c.id === conn.to.id);
             if (!fromComp || !toComp) return null;
-            const p0 = getConnectorPos(fromComp, 'output', conn.from.connector), p3 = getConnectorPos(toComp, 'input', conn.to.connector);
-            const p1 = { x: p0.x + 50, y: p0.y }, p2 = { x: p3.x - 50, y: p3.y };
-            const t = 0.5;
-            const x = Math.pow(1 - t, 3) * p0.x + 3 * Math.pow(1 - t, 2) * t * p1.x + 3 * (1 - t) * t * t * p2.x + t * t * t * p3.x;
-            const y = Math.pow(1 - t, 3) * p0.y + 3 * Math.pow(1 - t, 2) * t * p1.y + 3 * (1 - t) * t * t * p2.y + t * t * t * p3.y;
-            return {x, y};
+
+            const fromPos = getConnectorPos(fromComp, 'output', conn.from.connector);
+            const toPos = getConnectorPos(toComp, 'input', conn.to.connector);
+            const pathPoints = [fromPos, ...(conn.points || []), toPos];
+            
+            if (pathPoints.length < 2) return fromPos;
+
+            const midIndex = Math.floor(pathPoints.length / 2);
+            const p1 = pathPoints[midIndex-1];
+            const p2 = pathPoints[midIndex];
+
+            return { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
         }
 
         function drawConnectionData(conn) {
             if (!steadyResultsAvailable) return;
-            const fromComp = components.find(c => c.id === conn.from.id);
-            if (!fromComp || fromComp.results.caudal === null) return;
+            
+            const caudalValue = conn.caudal;
+            if (caudalValue === null || caudalValue === undefined) return;
 
             const pos = getBezierMidPoint(conn);
             if (!pos) return;
             
-            const caudalTxt = `${fromComp.results.caudal.toFixed(2)} kg/s`;
-            const tempTxt = `${fromComp.results.tempSaida.toFixed(1)}°C`;
+            const caudalTxt = `${caudalValue.toFixed(2)} kg/s`;
+            const tempTxt = `${(conn.temp || 0).toFixed(1)}°C`;
             
             ctx.font = '11px Inter'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             const textWidth = Math.max(ctx.measureText(caudalTxt).width, ctx.measureText(tempTxt).width) + 8;
@@ -526,14 +660,35 @@
         }
         
         function drawConnection(conn) {
-            const fromComp = components.find(c => c.id === conn.from.id), toComp = components.find(c => c.id === conn.to.id);
+            const fromComp = components.find(c => c.id === conn.from.id);
+            const toComp = components.find(c => c.id === conn.to.id);
             if (!fromComp || !toComp) return;
-            const fromPos = getConnectorPos(fromComp, 'output', conn.from.connector), toPos = getConnectorPos(toComp, 'input', conn.to.connector);
-            ctx.beginPath(); ctx.moveTo(fromPos.x, fromPos.y); ctx.bezierCurveTo(fromPos.x + 50, fromPos.y, toPos.x - 50, toPos.y, toPos.x, toPos.y);
+
+            const fromPos = getConnectorPos(fromComp, 'output', conn.from.connector);
+            const toPos = getConnectorPos(toComp, 'input', conn.to.connector);
+            
+            const pathPoints = [fromPos, ...(conn.points || []), toPos];
+
+            ctx.beginPath();
+            ctx.moveTo(pathPoints[0].x, pathPoints[0].y);
+            for (let i = 1; i < pathPoints.length; i++) {
+                ctx.lineTo(pathPoints[i].x, pathPoints[i].y);
+            }
+
             const isSelected = conn === selectedConnection;
             ctx.strokeStyle = isSelected ? '#f59e0b' : '#64748b'; // amber-500 for selection
             ctx.lineWidth = isSelected ? 5 : 3;
             ctx.stroke();
+
+            // Draw inflection points
+            if (conn.points) {
+                conn.points.forEach(p => {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 6 / viewTransform.scale, 0, 2 * Math.PI);
+                    ctx.fillStyle = isSelected ? '#f59e0b' : '#475569';
+                    ctx.fill();
+                });
+            }
         }
 
         function draw() {
@@ -553,9 +708,70 @@
             }
             components.forEach(drawComponent);
             connections.forEach(drawConnectionData);
+            
+            if (showNodeInfo) {
+                drawNodeInfo();
+            }
+
             ctx.restore();
+
+            // Draw tooltip on top of everything, in screen space
+            if (hoveredConnector) {
+                let text = hoveredConnector.type === 'input' ? 'Entrada' : 'Saída';
+                if(steadyResultsAvailable) {
+                    const conn = connections.find(c => (c.to.id === hoveredConnector.comp.id && c.to.connector === hoveredConnector.name) || (c.from.id === hoveredConnector.comp.id && c.from.connector === hoveredConnector.name));
+                    if(conn && conn.caudal !== undefined && conn.temp !== undefined && conn.caudal !== null && conn.temp !== null) {
+                        const connIndex = connections.indexOf(conn);
+                        text = `N${connIndex + 1}: ${text}`;
+                        text += ` | ${conn.caudal.toFixed(2)} kg/s | ${conn.temp.toFixed(1)}°C`;
+                    }
+                }
+                
+                ctx.font = '600 12px Inter';
+                const textMetrics = ctx.measureText(text);
+                const boxWidth = textMetrics.width + 16;
+                const boxHeight = 24;
+                const boxX = mouse.x + 15; // Offset from cursor
+                const boxY = mouse.y + 10;
+
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+                ctx.beginPath();
+                ctx.roundRect(boxX, boxY, boxWidth, boxHeight, [4]);
+                ctx.fill();
+
+                ctx.fillStyle = 'white';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(text, boxX + boxWidth / 2, boxY + boxHeight / 2);
+            }
         }
         
+        function drawNodeInfo() {
+             ctx.font = 'bold 12px Inter';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            connections.forEach((conn, index) => {
+                const pos = getBezierMidPoint(conn);
+                if (!pos) return;
+                
+                const nodeId = `N${index + 1}`;
+                const boxWidth = ctx.measureText(nodeId).width + 8;
+                const boxHeight = 18;
+
+                ctx.fillStyle = 'rgba(255, 229, 153, 0.9)'; // A yellow color
+                ctx.strokeStyle = '#d97706'; // Amber 600
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.roundRect(pos.x - boxWidth / 2, pos.y - boxHeight / 2, boxWidth, boxHeight, [4]);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = '#78350f'; // Amber 900
+                ctx.fillText(nodeId, pos.x, pos.y + 1);
+            });
+        }
+
         // --- PROPRIEDADES E DADOS ---
         function showPropertiesPanel(comp) {
             selectedComponent = comp;
@@ -565,10 +781,19 @@
             let content = `<h3 class="text-lg font-bold text-gray-700 mb-4 border-b pb-2">${comp.type}</h3><div class="space-y-4">`;
             
             // Generic parameter inputs
-            const specialKeys = ['cargaVariavel', 'perfilDiario', 'perfilAnual', 'perfilArray', 'fuelType', 'energySource', 'numEntradas', 'numSaidas', 'tipo'];
+            // Lista de chaves especiais que não devem ser apresentadas pelo gerador genérico de parâmetros.
+            // Para a válvula de regulação removemos o campo 'caudalPretendido' da lista genérica para mostrar
+            // um rótulo mais amigável mais abaixo.
+            const specialKeys = ['cargaVariavel', 'perfilDiario', 'perfilAnual', 'perfilArray', 'fuelType', 'energySource', 'numEntradas', 'numSaidas', 'tipo', 'caudalPretendido'];
             for (const key in comp.params) {
                 if (specialKeys.includes(key)) continue;
                 content += `<div><label for="param-${key}" class="block text-sm font-medium text-gray-700 capitalize">${key.replace(/([A-Z])/g, ' $1')}</label><input type="number" id="param-${key}" value="${comp.params[key]}" class="param-input mt-1"></div>`;
+            }
+
+            // Campo personalizado para caudal pretendido nas válvulas de regulação. Aparece apenas para este tipo de componente
+            // e permite definir explicitamente o caudal desejado em kg/s em vez de percentagem de abertura.
+            if (comp.type === 'Válvula de Regulação') {
+                content += `<div><label for="param-caudalPretendido" class="block text-sm font-medium text-gray-700">Caudal Pretendido (kg/s)</label><input type="number" id="param-caudalPretendido" value="${comp.params.caudalPretendido}" class="param-input mt-1"></div>`;
             }
 
             // Special inputs for specific components
@@ -580,7 +805,7 @@
                 </select></div>`;
             }
 
-            if(comp.type === 'Produtor Gen. (Aquecimento)' || comp.type === 'Produtor Gen. (Arrefecimento)') {
+            if(comp.type.includes('Produtor Gen.')) {
                  content += `<div><label for="param-energySource" class="block text-sm font-medium text-gray-700">Fonte de Energia</label>
                 <select id="param-energySource" class="param-input mt-1">
                     <option value="Eletricidade" ${comp.params.energySource === 'Eletricidade' ? 'selected' : ''}>Eletricidade</option>
@@ -603,6 +828,12 @@
             }
 
             content += '</div>';
+
+             if (componentTemplates[comp.type].category === 'Consumo') {
+                content += `<div class="mt-4 p-2 bg-blue-50 border-l-4 border-blue-400 text-blue-700 text-xs">
+                    <p><strong>Nota:</strong> Cargas positivas (aquecimento) retiram calor do circuito (diminuem a temperatura). Cargas negativas (arrefecimento) adicionam calor ao circuito (aumentam a temperatura).</p>
+                </div>`;
+            }
 
             if (comp.params.hasOwnProperty('cargaVariavel')) {
                 content += `<div class="mt-4 pt-4 border-t">
@@ -658,7 +889,10 @@
                     } else if (input.tagName === 'SELECT') {
                         comp.params[key] = input.value;
                     } else {
-                        comp.params[key] = parseFloat(input.value) || 0;
+                        // Para campos numéricos, substituir vírgulas por pontos antes de converter
+                        const raw = input.value;
+                        const normalized = typeof raw === 'string' ? raw.replace(',', '.') : raw;
+                        comp.params[key] = parseFloat(normalized) || 0;
                     }
                 }
             }
@@ -923,53 +1157,11 @@
 
             if (errors.length > 0) return errors;
 
-            // Pre-calculate thermal and hydraulic balance
+            // Thermal Power Check
             const totalProductionPower = producers.reduce((sum, comp) => sum + comp.params.potencia, 0);
             const totalConsumptionPower = consumers.reduce((sum, comp) => sum + comp.params.potencia, 0);
             if (totalProductionPower < totalConsumptionPower) {
                 errors.push(`Potência de produção nominal insuficiente. Produção: ${(totalProductionPower/1000).toFixed(1)} kW, Consumo: ${(totalConsumptionPower/1000).toFixed(1)} kW.`);
-            }
-
-            const simulationOrder = [], visited = new Set();
-            let currentComp = producers[0];
-            while (currentComp && !visited.has(currentComp.id)) {
-                simulationOrder.push(currentComp);
-                visited.add(currentComp.id);
-                let connection;
-                if (currentComp.type === 'Permutador') { connection = connections.find(c => c.from.id === currentComp.id && c.from.connector === 'primario_out'); }
-                else if (currentComp.type === 'Coletor') { connection = connections.find(c => c.from.id === currentComp.id && c.from.connector === 'out1'); }
-                else { connection = connections.find(c => c.from.id === currentComp.id); }
-                currentComp = connection ? components.find(c => c.id === connection.to.id) : null;
-            }
-
-            if (!currentComp || currentComp.id !== producers[0].id) {
-                errors.push('O circuito não está fechado. O último equipamento deve ligar-se ao primeiro equipamento de produção.');
-            } else {
-                const pumpInCircuit = simulationOrder.find(c => c.type === 'Bomba');
-                const totalPressureDrop = simulationOrder.reduce((sum, comp) => sum + (comp.params.perdaCarga || 0), 0);
-                if (pumpInCircuit && totalPressureDrop > pumpInCircuit.params.alturaManometrica) {
-                    errors.push(`Altura manométrica da bomba insuficiente. Bomba: ${pumpInCircuit.params.alturaManometrica} kPa, Perda de Carga: ${totalPressureDrop.toFixed(1)} kPa.`);
-                }
-
-                if (pumpInCircuit && pumpInCircuit.params.caudal > 0) {
-                    const totalThermalLoad = simulationOrder
-                        .filter(c => componentTemplates[c.type].category === 'Consumo')
-                        .reduce((sum, c) => sum + c.params.potencia, 0);
-
-                    const deltaT = totalThermalLoad / (pumpInCircuit.params.caudal * SPECIFIC_HEAT_WATER);
-                    const producer = simulationOrder[0];
-                    const estimatedReturnTemp = producer.params.tempSaida - deltaT;
-                    
-                    const isHeatingSystem = producer.type === 'Caldeira' || producer.type === 'Bomba de Calor' || producer.type === 'Produtor Gen. (Aquecimento)';
-                    const isCoolingSystem = producer.type === 'Chiller' || producer.type === 'Produtor Gen. (Arrefecimento)';
-
-                    if (isHeatingSystem && estimatedReturnTemp > producer.params.tempSaida) {
-                        errors.push(`Temperatura de retorno estimada (${estimatedReturnTemp.toFixed(1)}°C) é superior à de saída (${producer.params.tempSaida}°C). Verifique o caudal e as potências.`);
-                    }
-                    if (isCoolingSystem && estimatedReturnTemp < producer.params.tempSaida) {
-                         errors.push(`Temperatura de retorno estimada (${estimatedReturnTemp.toFixed(1)}°C) é inferior à de saída (${producer.params.tempSaida}°C). Verifique o caudal e as potências.`);
-                    }
-                }
             }
             return errors;
         }
@@ -982,134 +1174,328 @@
 
         function runSteadyStateCalculation(isDynamicStep = false) {
             steadyResultsAvailable = false;
+            
+            // 1. Reset results
             components.forEach(c => c.results = { 
                 caudal: null, tempEntrada: null, tempSaida: null, potencia: null,
                 consumoEletrico: 0, consumoGasNatural: 0, consumoPropano: 0 
             });
+            connections.forEach(conn => {
+                conn.caudal = null;
+                conn.temp = null;
+            });
+
+            const producers = components.filter(c => componentTemplates[c.type].category === 'Produção');
+            if (producers.length === 0) return;
             
+            const pump = components.find(c => c.type === 'Bomba');
+            if (!pump) return;
+
+            const compMap = new Map(components.map(c => [c.id, c]));
+            const mainProducer = producers[0];
             const tempExterior = parseFloat(document.getElementById('tempExterior').value) || 10;
-            const producer = components.find(c => componentTemplates[c.type].category === 'Produção');
-            const pump = components.find(c => componentTemplates[c.type].category === 'Impulsão');
-            
-            const simulationOrder = [], visited = new Set();
-            let currentComp = producer;
-            while (currentComp && !visited.has(currentComp.id)) {
-                simulationOrder.push(currentComp); 
-                visited.add(currentComp.id);
-                
-                let connection;
-                if (currentComp.type === 'Permutador') {
-                    connection = connections.find(c => c.from.id === currentComp.id && c.from.connector === 'primario_out');
-                } else if (currentComp.type === 'Coletor') {
-                    connection = connections.find(c => c.from.id === currentComp.id && c.from.connector === 'out1');
+
+            // 2. Cálculo de caudal
+            // Inicializa todos os caudais a null
+            components.forEach(c => c.results.caudal = null);
+            connections.forEach(c => c.caudal = null);
+            // Define o caudal inicial da bomba
+            pump.results.caudal = pump.params.caudal;
+            // Estrutura de dados para controlar as ligações já processadas, evitando ciclos
+            const processedConns = new Set();
+            const queue = [pump];
+            while (queue.length > 0) {
+                const currentComp = queue.shift();
+                const incomingCaudal = currentComp.results.caudal || 0;
+                const outgoingConns = connections.filter(c => c.from.id === currentComp.id);
+                if (currentComp.type === 'Válvula de Regulação') {
+                    // Limita o caudal ao valor definido pelo utilizador se existente.
+                    // Substitui vírgulas por pontos para suportar notação decimal portuguesa.
+                    let desiredRaw = currentComp.params.caudalPretendido;
+                    if (desiredRaw !== null && desiredRaw !== undefined) {
+                        desiredRaw = String(desiredRaw).replace(',', '.');
+                    }
+                    const desired = parseFloat(desiredRaw);
+                    const branchCaudal = (!isNaN(desired) && desired > 0) ? Math.min(desired, incomingCaudal) : incomingCaudal;
+                    outgoingConns.forEach(conn => {
+                        if (processedConns.has(conn)) return;
+                        conn.caudal = branchCaudal;
+                        const nextComp = compMap.get(conn.to.id);
+                        if (nextComp) {
+                            nextComp.results.caudal = (nextComp.results.caudal || 0) + branchCaudal;
+                            queue.push(nextComp);
+                        }
+                        processedConns.add(conn);
+                    });
+                } else if (currentComp.type === 'Coletor' && outgoingConns.length > 1) {
+                    // Distribuição de caudais nos coletores
+                    const specified = [];
+                    const unspecified = [];
+                    outgoingConns.forEach(conn => {
+                        if (processedConns.has(conn)) return;
+                        let next = compMap.get(conn.to.id);
+                        let desired = null;
+                        const visited = new Set();
+                        while (next && !visited.has(next.id) && desired === null) {
+                            visited.add(next.id);
+                        if (next.type === 'Válvula de Regulação') {
+                                // Extrai o valor de caudalPretendido, aceitando vírgulas como separador decimal
+                                let raw = next.params.caudalPretendido;
+                                if (raw !== null && raw !== undefined) {
+                                    raw = String(raw).replace(',', '.');
+                                }
+                                const d = parseFloat(raw);
+                                if (!isNaN(d) && d > 0) {
+                                    desired = d;
+                                    break;
+                                }
+                            }
+                            const outs = connections.filter(cc => cc.from.id === next.id);
+                            if (outs.length === 1 && next.type !== 'Coletor') {
+                                next = compMap.get(outs[0].to.id);
+                            } else {
+                                break;
+                            }
+                        }
+                        if (desired !== null) {
+                            specified.push({ conn, flow: desired });
+                        } else {
+                            unspecified.push(conn);
+                        }
+                    });
+                    let totalSpecified = specified.reduce((sum, obj) => sum + obj.flow, 0);
+                    if (totalSpecified >= incomingCaudal) {
+                        const ratio = incomingCaudal > 0 ? incomingCaudal / totalSpecified : 0;
+                        specified.forEach(obj => {
+                            const flow = obj.flow * ratio;
+                            obj.conn.caudal = flow;
+                            const nextComp = compMap.get(obj.conn.to.id);
+                            if (nextComp) {
+                                nextComp.results.caudal = (nextComp.results.caudal || 0) + flow;
+                                queue.push(nextComp);
+                            }
+                            processedConns.add(obj.conn);
+                        });
+                        unspecified.forEach(conn => {
+                            conn.caudal = 0;
+                            const nextComp = compMap.get(conn.to.id);
+                            if (nextComp) {
+                                nextComp.results.caudal = (nextComp.results.caudal || 0);
+                                // não enfileira porque o caudal é zero
+                            }
+                            processedConns.add(conn);
+                        });
+                    } else {
+                        specified.forEach(obj => {
+                            const flow = obj.flow;
+                            obj.conn.caudal = flow;
+                            const nextComp = compMap.get(obj.conn.to.id);
+                            if (nextComp) {
+                                nextComp.results.caudal = (nextComp.results.caudal || 0) + flow;
+                                queue.push(nextComp);
+                            }
+                            processedConns.add(obj.conn);
+                        });
+                        const remaining = incomingCaudal - totalSpecified;
+                        const equalShare = unspecified.length > 0 ? remaining / unspecified.length : 0;
+                        unspecified.forEach(conn => {
+                            conn.caudal = equalShare;
+                            const nextComp = compMap.get(conn.to.id);
+                            if (nextComp) {
+                                nextComp.results.caudal = (nextComp.results.caudal || 0) + equalShare;
+                                queue.push(nextComp);
+                            }
+                            processedConns.add(conn);
+                        });
+                    }
+                } else {
+                    // Qualquer outro componente propaga o caudal de entrada a todas as saídas
+                    outgoingConns.forEach(conn => {
+                        if (processedConns.has(conn)) return;
+                        conn.caudal = incomingCaudal;
+                        const nextComp = compMap.get(conn.to.id);
+                        if (nextComp) {
+                            nextComp.results.caudal = (nextComp.results.caudal || 0) + incomingCaudal;
+                            queue.push(nextComp);
+                        }
+                        processedConns.add(conn);
+                    });
                 }
-                else {
-                    connection = connections.find(c => c.from.id === currentComp.id);
+            }
+            // Verificação do balanço de caudais: soma dos caudais nos consumos deve coincidir com o caudal da bomba
+            const consumptionComps = components.filter(c => componentTemplates[c.type]?.category === 'Consumo');
+            let totalConsumedFlow = 0;
+            consumptionComps.forEach(comp => {
+                const incoming = connections.filter(c => c.to.id === comp.id);
+                incoming.forEach(conn => {
+                    if (conn.caudal !== null && conn.caudal !== undefined) totalConsumedFlow += conn.caudal;
+                });
+            });
+            const pumpFlow = pump.params.caudal;
+            if (Math.abs(totalConsumedFlow - pumpFlow) > 0.001) {
+                showMessage(`Aviso: A soma dos caudais consumidos (${totalConsumedFlow.toFixed(3)} kg/s) não coincide com o caudal da bomba (${pumpFlow.toFixed(3)} kg/s). Verifique os valores nas válvulas de regulação.`, true);
+            }
+
+            // 3. Temperature Calculation (iterative)
+            let returnTemp = 20; // Initial guess
+            for (let i = 0; i < 15; i++) {
+                connections.forEach(c => c.temp = null);
+
+                let tempQueue = [{ component: mainProducer, temp: returnTemp }];
+                let processedTemp = new Set();
+                let safetyCounter = 0;
+
+            while (tempQueue.length > 0 && safetyCounter < components.length * 2) {
+                safetyCounter++;
+                const { component: comp, temp: inputTemp } = tempQueue.shift();
+                if (processedTemp.has(comp.id)) continue;
+
+                const incomingConns = connections.filter(c => c.to.id === comp.id);
+                // Determine currentTemp based on incoming connection temperatures or fallback to inputTemp.
+                let currentTemp = inputTemp;
+                if (incomingConns.length > 0) {
+                    if (comp.type === 'Coletor' && incomingConns.length > 1) {
+                        // Média ponderada das temperaturas dos ramais. Se alguma temp estiver indisponível, utiliza inputTemp.
+                        const totalCaudal = incomingConns.reduce((sum, c) => sum + (c.caudal || 0), 0);
+                        if (totalCaudal > 0) {
+                            let weightedSum = 0;
+                            incomingConns.forEach(c => {
+                                const t = (c.temp !== null && c.temp !== undefined) ? c.temp : inputTemp;
+                                weightedSum += t * (c.caudal || 0);
+                            });
+                            currentTemp = weightedSum / totalCaudal;
+                        } else {
+                            // Se não houver caudal, utiliza a primeira ligação ou o inputTemp
+                            const firstTemp = incomingConns[0]?.temp;
+                            currentTemp = (firstTemp !== null && firstTemp !== undefined) ? firstTemp : inputTemp;
+                        }
+                    } else if (incomingConns.length === 1) {
+                        const incTemp = incomingConns[0].temp;
+                        currentTemp = (incTemp !== null && incTemp !== undefined) ? incTemp : inputTemp;
+                    }
                 }
 
-                currentComp = connection ? components.find(c => c.id === connection.to.id) : null;
-            }
-            
-            const lastComp = simulationOrder[simulationOrder.length - 1];
-            const loopConnection = connections.find(c => c.from.id === lastComp?.id && c.to.id === producer.id);
-            const valvula = simulationOrder.find(c => c.type === 'Válvula de Regulação');
-            const fatorAbertura = valvula ? Math.max(0, Math.min(1, valvula.params.abertura / 100)) : 1;
-            const caudal = pump.params.caudal * fatorAbertura;
-            let tempRetorno = loopConnection ? 20 : producer.params.tempSaida; 
-            
-            for(let i = 0; i < 5; i++) {
-                let currentTemp = tempRetorno;
-                simulationOrder.forEach(comp => {
-                    comp.results.caudal = caudal; comp.results.tempEntrada = currentTemp;
-                    if (caudal === 0) { comp.results.tempSaida = currentTemp; comp.results.potencia = 0; return; }
-                    
+                comp.results.tempEntrada = currentTemp;
+                const caudal = comp.results.caudal;
+                let tempSaida = currentTemp;
+
+                if (caudal !== null && caudal > 0.001) {
                     switch (comp.type) {
-                        case 'Caldeira': comp.results.tempSaida = comp.params.tempSaida; break;
-                        case 'Bomba de Calor': {
-                            const effectiveCOP = comp.params.COP - (7 - tempExterior) * 0.05;
-                            const potHP = comp.params.potencia * (effectiveCOP > 1 ? effectiveCOP : 1);
-                            comp.results.tempSaida = currentTemp + (potHP / (caudal * SPECIFIC_HEAT_WATER));
-                            comp.results.potencia = potHP;
-                            if (potHP > 0 && effectiveCOP > 0) comp.results.consumoEletrico = potHP / effectiveCOP;
+                        case 'Caldeira':
+                        case 'Bomba de Calor':
+                        case 'Chiller':
+                        case 'Produtor Gen. (Aquecimento)':
+                        case 'Produtor Gen. (Arrefecimento)':
+                            tempSaida = comp.params.tempSaida;
                             break;
-                        }
-                        case 'Chiller': {
-                            const efficiencyFactor = Math.max(0.1, 1 - (tempExterior - 35) * 0.03);
-                            const effectiveCoolingPower = comp.params.potencia * efficiencyFactor;
-                            comp.results.tempSaida = currentTemp - (effectiveCoolingPower / (caudal * SPECIFIC_HEAT_WATER));
-                            comp.results.potencia = -effectiveCoolingPower;
-                            const effectiveEER = comp.params.EER * efficiencyFactor;
-                            if (effectiveCoolingPower > 0 && effectiveEER > 0) comp.results.consumoEletrico = effectiveCoolingPower / effectiveEER;
-                            break;
-                        }
-                        case 'Produtor Gen. (Aquecimento)': {
-                            let potenciaConsumo = comp.params.potencia;
-                             if (dynamicSimState.running && comp.params.cargaVariavel && comp.params.perfilArray?.length === 8760) {
-                                potenciaConsumo = comp.params.perfilArray[dynamicSimState.hour - 1] || 0;
-                            }
-                            comp.results.tempSaida = currentTemp + (potenciaConsumo / (caudal * SPECIFIC_HEAT_WATER));
-                            comp.results.potencia = potenciaConsumo;
-                            if (comp.params.energySource === 'Eletricidade') comp.results.consumoEletrico = potenciaConsumo;
-                            else if (comp.params.energySource === 'Gás Natural') comp.results.consumoGasNatural = potenciaConsumo;
-                            else if (comp.params.energySource === 'Propano') comp.results.consumoPropano = potenciaConsumo;
-                            break;
-                        }
-                        case 'Produtor Gen. (Arrefecimento)': {
-                            let potenciaConsumo = comp.params.potencia;
-                             if (dynamicSimState.running && comp.params.cargaVariavel && comp.params.perfilArray?.length === 8760) {
-                                potenciaConsumo = comp.params.perfilArray[dynamicSimState.hour - 1] || 0;
-                            }
-                            comp.results.tempSaida = currentTemp - (potenciaConsumo / (caudal * SPECIFIC_HEAT_WATER));
-                            comp.results.potencia = -potenciaConsumo;
-                            if (comp.params.energySource === 'Eletricidade') comp.results.consumoEletrico = potenciaConsumo;
-                            else if (comp.params.energySource === 'Gás Natural') comp.results.consumoGasNatural = potenciaConsumo;
-                            else if (comp.params.energySource === 'Propano') comp.results.consumoPropano = potenciaConsumo;
-                            break;
-                        }
-                        case 'Bomba': comp.results.tempSaida = currentTemp; comp.results.potencia = 0; comp.results.consumoEletrico = comp.params.potEletrica; break;
                         case 'Tubo': {
                             const deltaT_tubo = currentTemp - tempExterior;
                             const perdaTubo = comp.params.comprimento * comp.params.perdaTermica * deltaT_tubo;
-                            comp.results.tempSaida = currentTemp - (perdaTubo / (caudal * SPECIFIC_HEAT_WATER));
-                            comp.results.potencia = -perdaTubo;
+                            tempSaida = currentTemp - (perdaTubo / (caudal * SPECIFIC_HEAT_WATER));
                             break;
                         }
-                        case 'Válvula de Regulação': comp.results.tempSaida = currentTemp; comp.results.potencia = 0; break;
-                        case 'Radiador': case 'Carga Genérica': case 'Permutador': {
-                            let potenciaConsumo = comp.params.potencia;
-                            if (!comp.type.includes('Permutador') && dynamicSimState.running && comp.params.cargaVariavel && comp.params.perfilArray?.length === 8760) {
-                                potenciaConsumo = comp.params.perfilArray[dynamicSimState.hour - 1] || 0;
-                            }
-                            comp.results.tempSaida = currentTemp - (potenciaConsumo / (caudal * SPECIFIC_HEAT_WATER));
-                            comp.results.potencia = -potenciaConsumo; 
-                            break;
-                        }
+                        case 'Radiador': case 'Carga Genérica': case 'Permutador':
                         case 'Unidade de Tratamento de Ar': {
                             let potenciaConsumo = comp.params.potencia;
-                            if (dynamicSimState.running && comp.params.cargaVariavel && comp.params.perfilArray?.length === 8760) {
-                                potenciaConsumo = comp.params.perfilArray[dynamicSimState.hour - 1] || 0;
+                            if (comp.params.cargaVariavel && comp.params.perfilArray?.length === 8760) {
+                                potenciaConsumo = comp.params.perfilArray[dynamicSimState.hour % 8760] || 0;
                             }
-                            comp.results.tempSaida = currentTemp - (potenciaConsumo / (caudal * SPECIFIC_HEAT_WATER));
-                            comp.results.potencia = -potenciaConsumo;
-                            comp.results.consumoEletrico = comp.params.potEletrica;
+                            tempSaida = currentTemp - (potenciaConsumo / (caudal * SPECIFIC_HEAT_WATER));
                             break;
                         }
-                        case 'Acumulador': case 'Depósito de Inércia': case 'Coletor':
-                            comp.results.tempSaida = currentTemp; comp.results.potencia = 0; break;
                     }
-                    currentTemp = comp.results.tempSaida;
+                }
+                comp.results.tempSaida = tempSaida;
+                processedTemp.add(comp.id);
+
+                const outgoingConns = connections.filter(c => c.from.id === comp.id);
+                outgoingConns.forEach(conn => {
+                    conn.temp = tempSaida;
+                    const nextComp = compMap.get(conn.to.id);
+                    if (nextComp && !tempQueue.some(item => item.component.id === nextComp.id)) {
+                        tempQueue.push({ component: nextComp, temp: tempSaida });
+                    }
                 });
-                if(loopConnection) tempRetorno = currentTemp; else break;
             }
 
-             if (loopConnection && producer.type === 'Caldeira') {
-                const potNec = caudal * SPECIFIC_HEAT_WATER * (producer.params.tempSaida - tempRetorno);
-                producer.results.potencia = potNec > 0 ? potNec : 0;
-                producer.results.consumoEletrico = producer.params.potEletrica;
-                const fuelConsumption = potNec > 0 ? potNec / producer.params.rendimento : 0;
-                if (producer.params.fuelType === 'Gás Natural') producer.results.consumoGasNatural = fuelConsumption;
-                else if (producer.params.fuelType === 'Propano') producer.results.consumoPropano = fuelConsumption;
-             }
+            const finalConn = connections.find(c => c.to.id === mainProducer.id);
+            if (finalConn && finalConn.temp !== null && finalConn.temp !== undefined) {
+                returnTemp = finalConn.temp;
+            }
+        }
+            
+            // 4. Final Power and Energy Calculation
+             components.forEach(comp => {
+                const caudal = comp.results.caudal;
+                if (caudal === null) return;
+                const deltaT = (comp.results.tempSaida || 0) - (comp.results.tempEntrada || 0);
+                const potNec = caudal * SPECIFIC_HEAT_WATER * deltaT;
+
+                if (componentTemplates[comp.type].category === 'Produção') {
+                    comp.results.potencia = Math.abs(potNec);
+                     switch (comp.type) {
+                        case 'Caldeira':
+                            comp.results.consumoEletrico = comp.params.potEletrica;
+                            const fuelConsumption = comp.results.potencia > 0 ? comp.results.potencia / comp.params.rendimento : 0;
+                            if (comp.params.fuelType === 'Gás Natural') comp.results.consumoGasNatural = fuelConsumption;
+                            else if (comp.params.fuelType === 'Propano') comp.results.consumoPropano = fuelConsumption;
+                            break;
+                        case 'Bomba de Calor':
+                            if (comp.results.potencia > 0 && comp.params.COP > 0) comp.results.consumoEletrico = comp.results.potencia / comp.params.COP;
+                            break;
+                        case 'Chiller':
+                            // Para chillers utiliza o EER (Energy Efficiency Ratio) para calcular consumo eléctrico
+                            if (comp.results.potencia > 0 && comp.params.EER > 0) {
+                                comp.results.consumoEletrico = comp.results.potencia / comp.params.EER;
+                            }
+                            break;
+                        case 'Produtor Gen. (Aquecimento)':
+                        case 'Produtor Gen. (Arrefecimento)':
+                            if (comp.params.energySource === 'Eletricidade') comp.results.consumoEletrico = comp.results.potencia;
+                            else if (comp.params.energySource === 'Gás Natural') comp.results.consumoGasNatural = comp.results.potencia;
+                            else if (comp.params.energySource === 'Propano') comp.results.consumoPropano = comp.results.potencia;
+                            break;
+                    }
+                } else if (componentTemplates[comp.type].category === 'Consumo') {
+                    comp.results.potencia = -potNec;
+                    if (comp.type === 'Unidade de Tratamento de Ar') {
+                        comp.results.consumoEletrico = comp.params.potEletrica;
+                    }
+                } else if (comp.type === 'Bomba') {
+                     comp.results.consumoEletrico = comp.params.potEletrica;
+                }
+            });
+
+            // Atribuir a temperatura de saída de cada componente a todas as ligações que saem desse componente
+            connections.forEach(conn => {
+                const fromComp = components.find(c => c.id === conn.from.id);
+                if (fromComp && fromComp.results && fromComp.results.tempSaida !== undefined && fromComp.results.tempSaida !== null) {
+                    conn.temp = fromComp.results.tempSaida;
+                }
+            });
+
+            // Verificar balanço de caudais nos circuitos quando existirem válvulas de regulação
+            // Calcula o somatório dos caudais a jusante de todos os equipamentos de consumo
+            // e verifica se coincide com o caudal da bomba. Caso contrário, emite um aviso.
+            if (!isDynamicStep) {
+                const consumers = components.filter(c => componentTemplates[c.type].category === 'Consumo');
+                let totalConsumerFlow = 0;
+                consumers.forEach(cons => {
+                    const incoming = connections.filter(conn => conn.to.id === cons.id);
+                    incoming.forEach(conn => {
+                        if (conn.caudal !== null && conn.caudal !== undefined) {
+                            totalConsumerFlow += conn.caudal;
+                        }
+                    });
+                });
+                const pumpComp = components.find(c => c.type === 'Bomba');
+                if (pumpComp) {
+                    const pumpFlow = pumpComp.results.caudal !== null && pumpComp.results.caudal !== undefined ? pumpComp.results.caudal : pumpComp.params.caudal;
+                    if (Math.abs(totalConsumerFlow - pumpFlow) > 1e-3) {
+                        showMessage(`Erro: A soma dos caudais nos circuitos (${totalConsumerFlow.toFixed(2)} kg/s) não coincide com o caudal da bomba (${pumpFlow.toFixed(2)} kg/s). Verifique as válvulas e confirme os caudais.`, true);
+                    }
+                }
+            }
 
             steadyResultsAvailable = true;
             if(!isDynamicStep) draw();
@@ -1268,6 +1654,10 @@
                     item.draggable = true; item.dataset.type = type; item.style.borderColor = template.color;
                     const colorIndicator = document.createElement('div'); colorIndicator.className = 'w-3 h-8 rounded';
                     colorIndicator.style.backgroundColor = template.color; item.appendChild(colorIndicator);
+                    // Adiciona ícone correspondente à categoria
+                    const iconEl = document.createElement('i');
+                    iconEl.className = `fa-solid ${categoryIcons[template.category] || 'fa-cube'} text-gray-500`;
+                    item.appendChild(iconEl);
                     const text = document.createElement('span'); text.textContent = type; text.className = 'font-semibold'; item.appendChild(text);
                     item.addEventListener('dragstart', (e) => e.dataTransfer.setData('text/plain', type));
                     categoryDiv.appendChild(item);
@@ -1345,7 +1735,66 @@
         closeTableModalBtn.addEventListener('click', hideDataTable);
         showChartBtn.addEventListener('click', showChartModal);
         closeChartModalBtn.addEventListener('click', hideChartModal);
+        showTemplatesBtn.addEventListener('click', () => templatesModal.classList.remove('hidden'));
+        closeTemplatesModalBtn.addEventListener('click', () => templatesModal.classList.add('hidden'));
+        templatesList.addEventListener('click', e => {
+            if (e.target.tagName === 'A' || e.target.closest('a')) {
+                const templateName = (e.target.tagName === 'A' ? e.target : e.target.closest('a')).dataset.template;
+                loadTemplate(templateName);
+                templatesModal.classList.add('hidden');
+            }
+        });
         closeValidationModalBtn.addEventListener('click', () => validationModal.classList.add('hidden'));
+        // Mostrar/ocultar tabela de nós de ligação e desenhar identificadores
+        showNodesBtn.addEventListener('click', () => {
+            // Se a simulação dinâmica estiver a correr, não permitir verificar os nós
+            if (dynamicSimState.running) {
+                showMessage("Pare a simulação dinâmica para poder verificar os nós.", true);
+                return;
+            }
+            // Validar o circuito antes de calcular
+            const validationErrors = validateCircuit();
+            if (validationErrors.length > 0) {
+                showValidationWarning(validationErrors);
+                return;
+            }
+            // Executar cálculo steady para garantir resultados actualizados
+            runSteadyStateCalculation(false);
+            // Construir a tabela com dados de cada ligação (nó)
+            const container = document.getElementById('connectors-table-container');
+            let tableHTML = '<table><thead><tr><th>Nó</th><th>Caudal (kg/s)</th><th>Temperatura (°C)</th></tr></thead><tbody>';
+            connections.forEach((conn, idx) => {
+                const nodeId = 'N' + (idx + 1);
+                const caudalVal = (conn.caudal !== null && conn.caudal !== undefined) ? conn.caudal.toFixed(2) : '--';
+                // Determina a temperatura a partir da ligação ou, caso não exista, a partir da temperatura de saída do componente de origem
+                let tempVal = '--';
+                if (conn.temp !== null && conn.temp !== undefined) {
+                    tempVal = conn.temp.toFixed(1);
+                } else {
+                    const fromComp = components.find(c => c.id === conn.from.id);
+                    const toComp = components.find(c => c.id === conn.to.id);
+                    // tenta usar a temperatura de saída do componente de origem
+                    if (fromComp && fromComp.results && fromComp.results.tempSaida !== null && fromComp.results.tempSaida !== undefined) {
+                        tempVal = fromComp.results.tempSaida.toFixed(1);
+                    } else if (toComp && toComp.results && toComp.results.tempEntrada !== null && toComp.results.tempEntrada !== undefined) {
+                        // caso não exista, tenta usar a temperatura de entrada do componente de destino
+                        tempVal = toComp.results.tempEntrada.toFixed(1);
+                    }
+                }
+                tableHTML += `<tr><td>${nodeId}</td><td>${caudalVal}</td><td>${tempVal}</td></tr>`;
+            });
+            tableHTML += '</tbody></table>';
+            container.innerHTML = tableHTML;
+            // Ativar a visualização dos identificadores dos nós no esquema
+            showNodeInfo = true;
+            connectorsModal.classList.remove('hidden');
+            draw();
+        });
+        closeConnectorsModalBtn.addEventListener('click', () => {
+            connectorsModal.classList.add('hidden');
+            showNodeInfo = false;
+            draw();
+        });
         clearBtn.addEventListener('click', clearWorkspace);
         clearResultsBtn.addEventListener('click', () => resetDynamicSimulation(true));
         
@@ -1443,6 +1892,19 @@
             const worldPos = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
             const mx = worldPos.x; const my = worldPos.y;
             
+            for (const conn of connections) {
+                if (conn.points) {
+                    for (let i = 0; i < conn.points.length; i++) {
+                        const p = conn.points[i];
+                        if (Math.hypot(mx - p.x, my - p.y) < (CONNECTOR_RADIUS + 4) / viewTransform.scale) {
+                            draggingPoint = { connection: conn, pointIndex: i, offsetX: mx - p.x, offsetY: my - p.y };
+                            draw();
+                            return;
+                        }
+                    }
+                }
+            }
+
             for (const comp of [...components].reverse()) {
                 const outputs = getComponentConnectors(comp, 'output');
                 for(const name of outputs) {
@@ -1467,15 +1929,22 @@
         canvas.addEventListener('mousemove', (e) => {
             const rect = canvas.getBoundingClientRect(); 
             mouse.x = e.clientX - rect.left; mouse.y = e.clientY - rect.top;
-            if (mouse.down && (draggingComponent || panning.active)) { mouse.dragMoved = true; }
-            if (draggingComponent) {
+            if (mouse.down && (draggingComponent || panning.active || draggingPoint)) { mouse.dragMoved = true; }
+            
+            if (draggingPoint) {
+                const worldPos = screenToWorld(mouse.x, mouse.y);
+                const point = draggingPoint.connection.points[draggingPoint.pointIndex];
+                let newX = worldPos.x - draggingPoint.offsetX;
+                let newY = worldPos.y - draggingPoint.offsetY;
+                point.x = Math.round(newX / GRID_SIZE) * GRID_SIZE;
+                point.y = Math.round(newY / GRID_SIZE) * GRID_SIZE;
+                draw();
+            } else if (draggingComponent) {
                 const worldPos = screenToWorld(mouse.x, mouse.y);
                 let newX = worldPos.x - draggingComponent.offsetX;
                 let newY = worldPos.y - draggingComponent.offsetY;
                 draggingComponent.x = Math.round(newX / GRID_SIZE) * GRID_SIZE;
                 draggingComponent.y = Math.round(newY / GRID_SIZE) * GRID_SIZE;
-                draw();
-            } else if (connectingFrom) { 
                 draw();
             } else if (panning.active) {
                 const dx = e.clientX - panning.startX; const dy = e.clientY - panning.startY;
@@ -1483,6 +1952,34 @@
                 panning.startX = e.clientX;
                 panning.startY = e.clientY;
                 draw();
+            } else {
+                 let foundConnector = null;
+                const worldPos = screenToWorld(mouse.x, mouse.y);
+                for (const comp of components) {
+                    const inputs = getComponentConnectors(comp, 'input');
+                    for (const name of inputs) {
+                        const pos = getConnectorPos(comp, 'input', name);
+                        if (Math.hypot(worldPos.x - pos.x, worldPos.y - pos.y) < CONNECTOR_RADIUS) {
+                            foundConnector = { comp, type: 'input', name, pos }; break;
+                        }
+                    }
+                    if (foundConnector) break;
+
+                    const outputs = getComponentConnectors(comp, 'output');
+                    for (const name of outputs) {
+                        const pos = getConnectorPos(comp, 'output', name);
+                        if (Math.hypot(worldPos.x - pos.x, worldPos.y - pos.y) < CONNECTOR_RADIUS) {
+                            foundConnector = { comp, type: 'output', name, pos }; break;
+                        }
+                    }
+                    if (foundConnector) break;
+                }
+
+                if ((hoveredConnector && !foundConnector) || (!hoveredConnector && foundConnector) || (hoveredConnector && foundConnector && (hoveredConnector.comp.id !== foundConnector.comp.id || hoveredConnector.name !== foundConnector.name))) {
+                    hoveredConnector = foundConnector;
+                    canvas.style.cursor = foundConnector ? 'pointer' : 'grab';
+                    draw();
+                }
             }
         });
 
@@ -1499,7 +1996,7 @@
                         const pos = getConnectorPos(comp, 'input', name);
                         if (Math.hypot(mx - pos.x, my - pos.y) < CONNECTOR_RADIUS + 2) {
                             if (!connections.find(c => c.to.id === comp.id && c.to.connector === name)) {
-                                connections.push({ from: { id: connectingFrom.component.id, connector: connectingFrom.connector }, to: { id: comp.id, connector: name } });
+                                connections.push({ from: { id: connectingFrom.component.id, connector: connectingFrom.connector }, to: { id: comp.id, connector: name }, points: [] });
                                 connectionMade = true;
                             } else { showMessage('Este conector de entrada já está a ser utilizado.', true); }
                             break;
@@ -1508,7 +2005,7 @@
                     if (connectionMade) break;
                 }
             } 
-            else if (!mouse.dragMoved) { 
+            else if (!mouse.dragMoved && !draggingPoint) { 
                 let clickedOnSomething = false;
                 const clickedComp = components.find(c => {
                     const height = getComponentHeight(c);
@@ -1521,15 +2018,24 @@
                         const fromComp = components.find(c => c.id === conn.from.id);
                         const toComp = components.find(c => c.id === conn.to.id);
                         if (!fromComp || !toComp) continue;
-                        const p0 = getConnectorPos(fromComp, 'output', conn.from.connector);
-                        const p3 = getConnectorPos(toComp, 'input', conn.to.connector);
-                        const p1 = { x: p0.x + 50, y: p0.y }; const p2 = { x: p3.x - 50, y: p3.y };
-                        if (isPointOnBezier({x: mx, y: my}, p0, p1, p2, p3)) {
-                            selectedConnection = conn;
-                            if(selectedComponent) hidePropertiesPanel();
-                            clickedOnSomething = true;
-                            break;
+
+                        const pathPoints = [
+                            getConnectorPos(fromComp, 'output', conn.from.connector),
+                            ...(conn.points || []),
+                            getConnectorPos(toComp, 'input', conn.to.connector)
+                        ];
+
+                        for (let i = 0; i < pathPoints.length - 1; i++) {
+                            const p1 = pathPoints[i];
+                            const p2 = pathPoints[i + 1];
+                            if (distToSegmentSquared({x: mx, y: my}, p1, p2) < (10 / viewTransform.scale) ** 2) {
+                                selectedConnection = conn;
+                                if(selectedComponent) hidePropertiesPanel();
+                                clickedOnSomething = true;
+                                break;
+                            }
                         }
+                        if (clickedOnSomething) break;
                     }
                 }
                 if (!clickedOnSomething) {
@@ -1537,7 +2043,7 @@
                     selectedConnection = null;
                 }
             }
-            draggingComponent = null; connectingFrom = null; mouse.down = false; mouse.dragMoved = false; panning.active = false;
+            draggingComponent = null; connectingFrom = null; mouse.down = false; mouse.dragMoved = false; panning.active = false; draggingPoint = null;
             draw();
         });
 
@@ -1548,11 +2054,117 @@
                 const height = getComponentHeight(c);
                 return mx > c.x && mx < c.x + COMPONENT_WIDTH && my > c.y && my < c.y + height;
             });
+
             if (clickedComp) {
                 const template = componentTemplates[clickedComp.type];
-                if (template.inputs.length > 0 && template.outputs.length > 0) { clickedComp.flipped = !clickedComp.flipped; draw(); }
+                if (template.inputs.length > 0 && template.outputs.length > 0) { 
+                    clickedComp.flipped = !clickedComp.flipped; 
+                    draw();
+                }
+            } else {
+                 let closest = { conn: null, index: -1, dist: Infinity };
+                const clickThresholdSq = (15 / viewTransform.scale) ** 2;
+
+                for (const conn of connections) {
+                    const fromComp = components.find(c => c.id === conn.from.id);
+                    const toComp = components.find(c => c.id === conn.to.id);
+                    if (!fromComp || !toComp) continue;
+
+                    const pathPoints = [
+                        getConnectorPos(fromComp, 'output', conn.from.connector),
+                        ...(conn.points || []),
+                        getConnectorPos(toComp, 'input', conn.to.connector)
+                    ];
+
+                    for (let i = 0; i < pathPoints.length - 1; i++) {
+                        const p1 = pathPoints[i];
+                        const p2 = pathPoints[i + 1];
+                        const distSq = distToSegmentSquared({x: mx, y: my}, p1, p2);
+
+                        if (distSq < closest.dist && distSq < clickThresholdSq) {
+                            closest = { conn, index: i + 1, dist: distSq };
+                        }
+                    }
+                }
+
+                if (closest.conn) {
+                    if (!closest.conn.points) {
+                        closest.conn.points = [];
+                    }
+                    closest.conn.points.splice(closest.index, 0, { x: mx, y: my });
+                    draw();
+                }
             }
         });
+        
+        function addComponent(type, x, y, params) {
+            const template = componentTemplates[type];
+            if (!template) return null;
+            const newComp = {
+                id: nextId++, type, x, y, flipped: false,
+                params: { ...JSON.parse(JSON.stringify(template.params)), ...params },
+                results: { caudal: null, tempEntrada: null, tempSaida: null, potencia: null },
+                totalConsumptions: { eletrico: 0, gasNatural: 0, propano: 0 }
+            };
+            if (type === 'Coletor') updateColetorConnectors(newComp);
+            components.push(newComp);
+            return newComp;
+        }
+
+        function loadTemplate(templateName) {
+            clearWorkspace();
+            let c1, c2, c3, c4, c5, c6;
+            switch(templateName) {
+                case 'caldeira_radiador':
+                    c1 = addComponent('Caldeira', 100, 100, { potencia: 25000, tempSaida: 80 });
+                    c2 = addComponent('Bomba', 100, 250, { caudal: 0.30 });
+                    c3 = addComponent('Radiador', 400, 175, { potencia: 25000 });
+                    if (c1 && c2 && c3) {
+                        connections.push({ from: { id: c1.id, connector: 'saida' }, to: { id: c3.id, connector: 'entrada' }, points: [] });
+                        connections.push({ from: { id: c3.id, connector: 'saida' }, to: { id: c2.id, connector: 'entrada' }, points: [] });
+                        connections.push({ from: { id: c2.id, connector: 'saida' }, to: { id: c1.id, connector: 'entrada' }, points: [] });
+                    }
+                    break;
+                case 'bc_uta':
+                    c1 = addComponent('Bomba de Calor', 100, 100, { potencia: 25000, tempSaida: 80 });
+                    c2 = addComponent('Bomba', 100, 250, { caudal: 1.20 });
+                    c3 = addComponent('Unidade de Tratamento de Ar', 400, 175, { potencia: 25000 });
+                    if (c1 && c2 && c3) {
+                        connections.push({ from: { id: c1.id, connector: 'saida' }, to: { id: c3.id, connector: 'entrada' }, points: [] });
+                        connections.push({ from: { id: c3.id, connector: 'saida' }, to: { id: c2.id, connector: 'entrada' }, points: [] });
+                        connections.push({ from: { id: c2.id, connector: 'saida' }, to: { id: c1.id, connector: 'entrada' }, points: [] });
+                    }
+                    break;
+                case 'chiller_uta':
+                    c1 = addComponent('Chiller', 100, 100, { potencia: 25000, tempSaida: 7 });
+                    c2 = addComponent('Bomba', 100, 250, { caudal: 1.20 });
+                    c3 = addComponent('Unidade de Tratamento de Ar', 400, 175, { potencia: -25000 });
+                    if (c1 && c2 && c3) {
+                        connections.push({ from: { id: c1.id, connector: 'saida' }, to: { id: c3.id, connector: 'entrada' }, points: [] });
+                        connections.push({ from: { id: c3.id, connector: 'saida' }, to: { id: c2.id, connector: 'entrada' }, points: [] });
+                        connections.push({ from: { id: c2.id, connector: 'saida' }, to: { id: c1.id, connector: 'entrada' }, points: [] });
+                    }
+                    break;
+                 case 'coletor_paralelo':
+                    c1 = addComponent('Bomba de Calor', 100, 300, { potencia: 50000, tempSaida: 80 });
+                    c2 = addComponent('Coletor', 350, 300, { numEntradas: 1, numSaidas: 2 });
+                    c3 = addComponent('Unidade de Tratamento de Ar', 600, 150, { potencia: 25000 });
+                    c4 = addComponent('Unidade de Tratamento de Ar', 600, 450, { potencia: 25000 });
+                    c5 = addComponent('Coletor', 350, 100, { numEntradas: 2, numSaidas: 1 });
+                    c6 = addComponent('Bomba', 100, 100, { caudal: 1.20 });
+                    if(c1 && c2 && c3 && c4 && c5 && c6) {
+                        connections.push({ from: { id: c1.id, connector: 'saida' }, to: { id: c2.id, connector: 'in1' }, points: [] });
+                        connections.push({ from: { id: c2.id, connector: 'out1' }, to: { id: c3.id, connector: 'entrada' }, points: [] });
+                        connections.push({ from: { id: c2.id, connector: 'out2' }, to: { id: c4.id, connector: 'entrada' }, points: [] });
+                        connections.push({ from: { id: c3.id, connector: 'saida' }, to: { id: c5.id, connector: 'in1' }, points: [] });
+                        connections.push({ from: { id: c4.id, connector: 'saida' }, to: { id: c5.id, connector: 'in2' }, points: [] });
+                        connections.push({ from: { id: c5.id, connector: 'out1' }, to: { id: c6.id, connector: 'entrada' }, points: [] });
+                        connections.push({ from: { id: c6.id, connector: 'saida' }, to: { id: c1.id, connector: 'entrada' }, points: [] });
+                    }
+                    break;
+            }
+            draw();
+        }
 
         setupCanvas();
         populateLibrary();

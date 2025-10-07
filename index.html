@@ -169,6 +169,7 @@
             <button id="show-nodes-btn" class="bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-indigo-600 transition duration-300">Verificar Nós</button>
             <button id="showTableBtn" class="bg-gray-500 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-gray-600 transition duration-300">Tabela</button>
             <button id="showChartBtn" class="bg-purple-500 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-purple-600 transition duration-300">Gráfico</button>
+            <button id="energyCostBtn" class="bg-orange-500 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-orange-600 transition duration-300">Custos Energia</button>
             <button id="simulateSteadyBtn" class="bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-blue-700 transition duration-300">Sim. Steady</button>
             <div class="flex items-center space-x-2 bg-gray-100 p-1 rounded-lg">
                  <button id="startDynamicBtn" class="bg-teal-500 text-white font-semibold px-4 py-1 rounded-lg shadow hover:bg-teal-600 transition duration-300">Sim. Dinâmica</button>
@@ -292,6 +293,17 @@
                 <button id="close-connectors-modal-btn" class="text-gray-400 hover:text-gray-600 text-2xl font-bold">&times;</button>
             </header>
             <main id="connectors-table-container" class="p-4 overflow-y-auto"></main>
+        </div>
+    </div>
+
+    <!-- Losses Modal -->
+    <div id="losses-modal" class="hidden fixed inset-0 z-30 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col">
+            <header class="p-4 border-b flex justify-between items-center">
+                <h2 class="text-xl font-bold text-gray-700">Perdas de Carga da Instalação</h2>
+                <button id="close-losses-modal-btn" class="text-gray-400 hover:text-gray-600 text-2xl font-bold">&times;</button>
+            </header>
+            <main id="losses-table-container" class="p-4 overflow-y-auto"></main>
         </div>
     </div>
 
@@ -420,6 +432,7 @@
         let editingLoadComponent = null;
         let draggingPoint = null;
         let hoveredConnector = null;
+        let hoveredComponent = null;
         let showNodeInfo = false;
 
         // --- SETUP DO CANVAS E DOM ---
@@ -464,6 +477,29 @@
         const showNodesBtn = document.getElementById('show-nodes-btn');
         const connectorsModal = document.getElementById('connectors-modal');
         const closeConnectorsModalBtn = document.getElementById('close-connectors-modal-btn');
+
+        const lossesModal = document.getElementById('losses-modal');
+        const closeLossesModalBtn = document.getElementById('close-losses-modal-btn');
+
+        // Botão e valores para os custos de energia
+        const energyCostBtn = document.getElementById('energyCostBtn');
+        // Custos de energia por kWh (padrão em euros)
+        let energyCosts = {
+            eletricidade: 0.20,
+            gasNatural: 0.05,
+            propano: 0.15
+        };
+
+        // Função auxiliar para actualizar o atributo title do botão de custos com os valores actuais
+        function updateEnergyCostTooltip() {
+            const lines = [];
+            lines.push(`Eletricidade: €${energyCosts.eletricidade.toFixed(2)}/kWh`);
+            lines.push(`Gás Natural: €${energyCosts.gasNatural.toFixed(2)}/kWh`);
+            lines.push(`Propano: €${energyCosts.propano.toFixed(2)}/kWh`);
+            energyCostBtn.title = lines.join('\n');
+        }
+        // Inicializar o tooltip
+        updateEnergyCostTooltip();
         
         // --- HELPERS (TRANSFORMAÇÃO E GRELHA) ---
         function getComponentHeight(comp) {
@@ -726,23 +762,66 @@
                         text += ` | ${conn.caudal.toFixed(2)} kg/s | ${conn.temp.toFixed(1)}°C`;
                     }
                 }
-                
                 ctx.font = '600 12px Inter';
                 const textMetrics = ctx.measureText(text);
                 const boxWidth = textMetrics.width + 16;
                 const boxHeight = 24;
                 const boxX = mouse.x + 15; // Offset from cursor
                 const boxY = mouse.y + 10;
-
                 ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
                 ctx.beginPath();
                 ctx.roundRect(boxX, boxY, boxWidth, boxHeight, [4]);
                 ctx.fill();
-
                 ctx.fillStyle = 'white';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillText(text, boxX + boxWidth / 2, boxY + boxHeight / 2);
+            } else if (hoveredComponent) {
+                // Show detailed tooltip for components
+                const lines = [];
+                lines.push(`${hoveredComponent.type} (ID: ${hoveredComponent.id})`);
+                // Mostrar parâmetros definidos
+                for (const [key, value] of Object.entries(hoveredComponent.params)) {
+                    if (['perfilDiario','perfilAnual','perfilArray'].includes(key)) continue;
+                    const formattedKey = key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1');
+                    lines.push(`${formattedKey}: ${value}`);
+                }
+                // Mostrar resultados se disponíveis
+                if (steadyResultsAvailable && hoveredComponent.results) {
+                    const r = hoveredComponent.results;
+                    if (r.caudal !== null && r.caudal !== undefined) lines.push(`Caudal: ${r.caudal.toFixed(2)} kg/s`);
+                    if (r.tempEntrada !== null && r.tempEntrada !== undefined) lines.push(`Temp. Entrada: ${r.tempEntrada.toFixed(1)}°C`);
+                    if (r.tempSaida !== null && r.tempSaida !== undefined) lines.push(`Temp. Saída: ${r.tempSaida.toFixed(1)}°C`);
+                    if (r.potencia !== null && r.potencia !== undefined) lines.push(`Potência: ${r.potencia.toFixed(1)} kW`);
+                    const ce = r.consumoEletrico || 0;
+                    const cg = r.consumoGasNatural || 0;
+                    const cp = r.consumoPropano || 0;
+                    if (ce) lines.push(`Consumo Eletricidade: ${(ce / 1000).toFixed(2)} kWh`);
+                    if (cg) lines.push(`Consumo Gás Natural: ${(cg / 1000).toFixed(2)} kWh`);
+                    if (cp) lines.push(`Consumo Propano: ${(cp / 1000).toFixed(2)} kWh`);
+                }
+                ctx.font = '600 12px Inter';
+                let maxWidth = 0;
+                lines.forEach(line => {
+                    const m = ctx.measureText(line);
+                    if (m.width > maxWidth) maxWidth = m.width;
+                });
+                const boxWidth = maxWidth + 16;
+                const boxHeight = lines.length * 18 + 8;
+                const boxX = mouse.x + 15;
+                const boxY = mouse.y + 10;
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                ctx.beginPath();
+                ctx.roundRect(boxX, boxY, boxWidth, boxHeight, [4]);
+                ctx.fill();
+                ctx.fillStyle = 'white';
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'top';
+                let yOffset = boxY + 4;
+                lines.forEach(line => {
+                    ctx.fillText(line, boxX + 8, yOffset);
+                    yOffset += 18;
+                });
             }
         }
         
@@ -777,7 +856,11 @@
             selectedComponent = comp;
             propertiesPanel.innerHTML = '';
             propertiesPanel.classList.remove('w-0', 'p-0');
-            propertiesPanel.classList.add('w-96', 'p-4'); 
+            // Expand a bit more the properties panel for better visibility
+            propertiesPanel.classList.remove('w-96');
+            propertiesPanel.classList.add('p-4');
+            // Set explicit width via inline style (approximately 30rem)
+            propertiesPanel.style.width = '30rem';
             let content = `<h3 class="text-lg font-bold text-gray-700 mb-4 border-b pb-2">${comp.type}</h3><div class="space-y-4">`;
             
             // Generic parameter inputs
@@ -846,6 +929,11 @@
                 </div>`;
             }
 
+            // Se o componente for uma bomba, adicionar botão para verificar perdas de carga
+            if (comp.type === 'Bomba') {
+                content += `<div class="mt-4"><button id="check-losses-btn" class="w-full bg-teal-600 text-white py-2 rounded-lg hover:bg-teal-700 transition">Verificar Perdas de Carga</button></div>`;
+            }
+
             content += `<div class="mt-6 pt-4 border-t space-y-2"><button id="save-params-btn" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition">Guardar</button><button id="delete-comp-btn" class="w-full bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition">Apagar</button></div>`;
             propertiesPanel.innerHTML = content;
             
@@ -856,13 +944,24 @@
 
             document.getElementById('save-params-btn').addEventListener('click', () => saveComponentParams(comp));
             document.getElementById('delete-comp-btn').addEventListener('click', () => deleteComponent(comp.id));
+
+            // Ligar botão de verificação de perdas se se tratar de uma bomba
+            if (comp.type === 'Bomba') {
+                const checkLossesBtn = document.getElementById('check-losses-btn');
+                if (checkLossesBtn) {
+                    checkLossesBtn.addEventListener('click', () => checkPumpLosses(comp));
+                }
+            }
             draw();
         }
 
         function hidePropertiesPanel() {
             selectedComponent = null;
-            propertiesPanel.classList.remove('w-96', 'p-4');
+            // Reset width and padding of the properties panel
+            propertiesPanel.classList.remove('p-4');
             propertiesPanel.classList.add('w-0', 'p-0');
+            // Clear any explicit width styling
+            propertiesPanel.style.width = '';
             propertiesPanel.innerHTML = '';
             draw();
         }
@@ -928,16 +1027,43 @@
                     <th>Eletricidade (kWh)</th><th>Gás Natural (kWh)</th><th>Propano (kWh)</th>
                 </tr></thead><tbody>`;
 
+            // Accumulators for totals
+            let sumElecKWh = 0;
+            let sumGasKWh = 0;
+            let sumPropKWh = 0;
             components.forEach(comp => {
                 const totals = comp.totalConsumptions || { eletrico: 0, gasNatural: 0, propano: 0 };
+                const elecKWh = totals.eletrico / 1000;
+                const gasKWh = totals.gasNatural / 1000;
+                const propKWh = totals.propano / 1000;
+                sumElecKWh += elecKWh;
+                sumGasKWh += gasKWh;
+                sumPropKWh += propKWh;
                 consumptionTableHTML += `<tr>
                     <td>${comp.id}</td>
                     <td class="font-bold">${comp.type}</td>
-                    <td>${(totals.eletrico / 1000).toFixed(2)}</td>
-                    <td>${(totals.gasNatural / 1000).toFixed(2)}</td>
-                    <td>${(totals.propano / 1000).toFixed(2)}</td>
+                    <td>${elecKWh.toFixed(2)}</td>
+                    <td>${gasKWh.toFixed(2)}</td>
+                    <td>${propKWh.toFixed(2)}</td>
                 </tr>`;
             });
+            // Totals row
+            consumptionTableHTML += `<tr class="font-semibold border-t">
+                <td colspan="2">Total (kWh)</td>
+                <td>${sumElecKWh.toFixed(2)}</td>
+                <td>${sumGasKWh.toFixed(2)}</td>
+                <td>${sumPropKWh.toFixed(2)}</td>
+            </tr>`;
+            // Cost row using current energyCosts
+            const costElec = (sumElecKWh * energyCosts.eletricidade).toFixed(2);
+            const costGas = (sumGasKWh * energyCosts.gasNatural).toFixed(2);
+            const costProp = (sumPropKWh * energyCosts.propano).toFixed(2);
+            consumptionTableHTML += `<tr class="font-semibold">
+                <td colspan="2">Custo (€)</td>
+                <td>${costElec}</td>
+                <td>${costGas}</td>
+                <td>${costProp}</td>
+            </tr>`;
             consumptionTableHTML += '</tbody></table>';
 
             // Table 2: Equipment Characteristics
@@ -970,6 +1096,42 @@
 
         function hideDataTable() {
             tableModal.classList.add('hidden');
+        }
+
+        // Gera e mostra o relatório de perdas de carga para a bomba selecionada
+        function checkPumpLosses(pumpComp) {
+            // Construir lista de equipamentos com perdas de carga
+            let rowsHTML = '<table class="w-full"><thead><tr><th class="text-left px-2 py-1 border-b">ID</th><th class="text-left px-2 py-1 border-b">Equipamento</th><th class="text-left px-2 py-1 border-b">Perda de Carga (kPa)</th></tr></thead><tbody>';
+            let totalLoss = 0;
+            components.forEach(comp => {
+                if (comp.id === pumpComp.id) return;
+                // Only include components com caudal positivo se a simulação steady estiver disponível
+                let include = true;
+                if (steadyResultsAvailable) {
+                    const caudal = comp.results?.caudal || 0;
+                    include = caudal > 0;
+                }
+                if (!include) return;
+                const perda = parseFloat(String(comp.params.perdaCarga || 0).replace(',', '.'));
+                if (!isNaN(perda) && perda > 0) {
+                    totalLoss += perda;
+                    rowsHTML += `<tr><td class="px-2 py-1 border-b">${comp.id}</td><td class="px-2 py-1 border-b">${comp.type}</td><td class="px-2 py-1 border-b">${perda.toFixed(2)}</td></tr>`;
+                }
+            });
+            rowsHTML += '</tbody></table>';
+            const pumpHead = parseFloat(String(pumpComp.params.alturaManometrica || 0).replace(',', '.'));
+            // Mensagem de comparação
+            let resultMsg = '';
+            if (isNaN(pumpHead)) {
+                resultMsg = '<p class="mt-4 text-red-600">A bomba não tem uma altura manométrica definida.</p>';
+            } else if (totalLoss <= pumpHead) {
+                resultMsg = `<p class="mt-4 text-green-600 font-medium">A bomba possui altura manométrica suficiente: perdas totais ≈ ${totalLoss.toFixed(2)} kPa ≤ ${pumpHead.toFixed(2)} kPa.</p>`;
+            } else {
+                resultMsg = `<p class="mt-4 text-red-600 font-medium">Atenção: perdas totais ≈ ${totalLoss.toFixed(2)} kPa > altura manométrica da bomba (${pumpHead.toFixed(2)} kPa). A bomba não tem capacidade suficiente.</p>`;
+            }
+            const container = document.getElementById('losses-table-container');
+            container.innerHTML = `<p class="mb-2">Perdas de carga por equipamento:</p>` + rowsHTML + resultMsg;
+            lossesModal.classList.remove('hidden');
         }
 
         function updateDailyLoadTotal() {
@@ -1164,6 +1326,28 @@
                 errors.push(`Potência de produção nominal insuficiente. Produção: ${(totalProductionPower/1000).toFixed(1)} kW, Consumo: ${(totalConsumptionPower/1000).toFixed(1)} kW.`);
             }
             return errors;
+        }
+
+        // Valida se a bomba possui altura manométrica suficiente após a execução do cálculo em regime permanente.
+        // Requer que runSteadyStateCalculation tenha sido executada previamente para calcular os caudais.
+        function validatePumpHead() {
+            const pump = components.find(c => c.type === 'Bomba');
+            if (!pump) return null;
+            let totalLoss = 0;
+            components.forEach(comp => {
+                if (comp.id === pump.id) return;
+                const caudal = comp.results?.caudal || 0;
+                if (caudal > 0) {
+                    const perda = parseFloat(String(comp.params.perdaCarga || 0).replace(',', '.'));
+                    if (!isNaN(perda) && perda > 0) totalLoss += perda;
+                }
+            });
+            const pumpHead = parseFloat(String(pump.params.alturaManometrica || 0).replace(',', '.'));
+            if (isNaN(pumpHead)) return `A bomba não tem altura manométrica definida.`;
+            if (totalLoss > pumpHead) {
+                return `As perdas de carga totais (${totalLoss.toFixed(2)} kPa) superam a altura manométrica da bomba (${pumpHead.toFixed(2)} kPa).`;
+            }
+            return null;
         }
 
 
@@ -1499,6 +1683,28 @@
 
             steadyResultsAvailable = true;
             if(!isDynamicStep) draw();
+
+            // Verificar se a bomba tem capacidade para vencer as perdas de carga totais
+            // Soma as perdas de carga de todos os componentes percorridos (excepto a bomba) com caudal positivo
+            if (!isDynamicStep) {
+                let totalPerda = 0;
+                components.forEach(comp => {
+                    if (comp.type !== 'Bomba') {
+                        const caudal = comp.results.caudal || 0;
+                        if (caudal > 0) {
+                            const perda = parseFloat(String(comp.params.perdaCarga || 0).replace(',', '.'));
+                            if (!isNaN(perda)) totalPerda += perda;
+                        }
+                    }
+                });
+                const pumpComp = components.find(c => c.type === 'Bomba');
+                if (pumpComp) {
+                    const pumpHead = parseFloat(String(pumpComp.params.alturaManometrica || 0).replace(',', '.'));
+                    if (!isNaN(pumpHead) && totalPerda > pumpHead) {
+                        showMessage(`Aviso: As perdas de carga totais na instalação (≈${totalPerda.toFixed(1)} kPa) ultrapassam a altura manométrica da bomba (≈${pumpHead.toFixed(1)} kPa). Verifique a seleção da bomba ou reduza as perdas.`, true);
+                    }
+                }
+            }
         }
 
         function startDynamicSimulation() {
@@ -1507,16 +1713,27 @@
                 showValidationWarning(validationErrors);
                 return;
             }
+            // Antes de iniciar a simulação dinâmica, executa um cálculo em regime permanente para validar caudais e perdas de carga
+            // Isto garante que potenciais erros (ex. bomba insuficiente) sejam detectados logo no início.
+            // Não usar o modo de dinâmica (false) para obter uma solução estática inicial.
+            runSteadyStateCalculation(false);
+            const pumpError = validatePumpHead();
+            if (pumpError) {
+                const pumpComp = components.find(c => c.type === 'Bomba');
+                if (pumpComp) checkPumpLosses(pumpComp);
+                showMessage(pumpError, true);
+                return;
+            }
             if (dynamicSimState.running) return;
 
             if (dynamicSimState.hour >= 8760) {
                 resetDynamicSimulation(true);
             }
-            
+
             dynamicSimState.running = true;
             startDynamicBtn.classList.add('hidden');
             pauseDynamicBtn.classList.remove('hidden');
-            
+
             if (dynamicSimState.intervalId) clearInterval(dynamicSimState.intervalId);
             dynamicSimState.intervalId = setInterval(dynamicStep, dynamicSimState.speed);
         }
@@ -1725,7 +1942,17 @@
                 showValidationWarning(validationErrors);
                 return;
             }
+            // Executa cálculo em regime permanente
             runSteadyStateCalculation(false);
+            // Verifica se a bomba tem capacidade suficiente para as perdas de carga calculadas
+            const pumpError = validatePumpHead();
+            if (pumpError) {
+                // Mostrar popup de descrição através do modal de perdas e mensagem de alerta
+                const pumpComp = components.find(c => c.type === 'Bomba');
+                if (pumpComp) checkPumpLosses(pumpComp);
+                showMessage(pumpError, true);
+                return;
+            }
             showMessage("Simulação Steady-State concluída!");
         });
 
@@ -1745,6 +1972,26 @@
             }
         });
         closeValidationModalBtn.addEventListener('click', () => validationModal.classList.add('hidden'));
+
+        // Evento para definir os custos de energia
+        energyCostBtn.addEventListener('click', () => {
+            const elec = prompt('Custo da eletricidade (€/kWh):', energyCosts.eletricidade);
+            const gas = prompt('Custo do gás natural (€/kWh):', energyCosts.gasNatural);
+            const prop = prompt('Custo do propano (€/kWh):', energyCosts.propano);
+            // Normaliza vírgulas para pontos e converte para número. Se inválido, mantém valor anterior
+            const parseVal = (val, old) => {
+                if (val === null || val === '') return old;
+                const norm = String(val).replace(',', '.');
+                const num = parseFloat(norm);
+                return isNaN(num) || num < 0 ? old : num;
+            };
+            energyCosts.eletricidade = parseVal(elec, energyCosts.eletricidade);
+            energyCosts.gasNatural   = parseVal(gas, energyCosts.gasNatural);
+            energyCosts.propano      = parseVal(prop, energyCosts.propano);
+            // Actualizar tooltip com novos custos
+            updateEnergyCostTooltip();
+            showMessage(`Custos de energia actualizados: Electricidade €${energyCosts.eletricidade.toFixed(2)}/kWh, Gás Natural €${energyCosts.gasNatural.toFixed(2)}/kWh, Propano €${energyCosts.propano.toFixed(2)}/kWh.`);
+        });
         // Mostrar/ocultar tabela de nós de ligação e desenhar identificadores
         showNodesBtn.addEventListener('click', () => {
             // Se a simulação dinâmica estiver a correr, não permitir verificar os nós
@@ -1790,6 +2037,9 @@
             connectorsModal.classList.remove('hidden');
             draw();
         });
+
+        // Fechar modal de perdas de carga
+        closeLossesModalBtn.addEventListener('click', () => lossesModal.classList.add('hidden'));
         closeConnectorsModalBtn.addEventListener('click', () => {
             connectorsModal.classList.add('hidden');
             showNodeInfo = false;
@@ -1975,10 +2225,31 @@
                     if (foundConnector) break;
                 }
 
+                // Determine hovered component (if not over a connector)
+                let foundComp = null;
+                if (!foundConnector) {
+                    for (const comp of components) {
+                        const height = getComponentHeight(comp);
+                        if (worldPos.x > comp.x && worldPos.x < comp.x + COMPONENT_WIDTH && worldPos.y > comp.y && worldPos.y < comp.y + height) {
+                            foundComp = comp;
+                            break;
+                        }
+                    }
+                }
+                // Update hoveredConnector state
                 if ((hoveredConnector && !foundConnector) || (!hoveredConnector && foundConnector) || (hoveredConnector && foundConnector && (hoveredConnector.comp.id !== foundConnector.comp.id || hoveredConnector.name !== foundConnector.name))) {
                     hoveredConnector = foundConnector;
-                    canvas.style.cursor = foundConnector ? 'pointer' : 'grab';
+                    canvas.style.cursor = foundConnector ? 'pointer' : (foundComp ? 'default' : 'grab');
                     draw();
+                }
+                // Update hoveredComponent state if changed
+                if (hoveredComponent !== foundComp) {
+                    hoveredComponent = foundComp;
+                    // Only redraw if component hover changed and not over connector
+                    if (!foundConnector) {
+                        canvas.style.cursor = foundComp ? 'default' : 'grab';
+                        draw();
+                    }
                 }
             }
         });

@@ -138,6 +138,17 @@
                     </ul>
                 </div>
             </div>
+
+    <!-- Scenario Comparison Modal -->
+    <div id="scenario-modal" class="hidden fixed inset-0 z-30 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col">
+            <header class="p-4 border-b flex justify-between items-center">
+                <h2 class="text-xl font-bold text-gray-700">Comparação de Cenários</h2>
+                <button id="close-scenario-modal-btn" class="text-gray-400 hover:text-gray-600 text-2xl font-bold">&times;</button>
+            </header>
+            <main id="scenario-comparison-container" class="p-4 overflow-y-auto"></main>
+        </div>
+    </div>
         </div>
         <div class="flex items-center space-x-2 bg-gray-100 p-2 rounded-lg">
             <div class="text-center px-2">
@@ -238,7 +249,11 @@
         <div class="bg-white rounded-lg shadow-2xl w-full max-w-7xl max-h-[80vh] flex flex-col">
             <header class="p-4 border-b flex justify-between items-center">
                 <h2 class="text-xl font-bold text-gray-700">Tabela de Equipamentos e Dados</h2>
-                <button id="close-table-modal-btn" class="text-gray-400 hover:text-gray-600 text-2xl font-bold">&times;</button>
+                <div class="flex items-center space-x-2">
+                    <button id="save-scenario-btn" class="bg-blue-500 text-white font-semibold px-3 py-1 rounded-md shadow hover:bg-blue-600 transition text-sm">Guardar Versão</button>
+                    <button id="compare-scenarios-btn" class="bg-teal-500 text-white font-semibold px-3 py-1 rounded-md shadow hover:bg-teal-600 transition text-sm">Comparar Cenários</button>
+                    <button id="close-table-modal-btn" class="text-gray-400 hover:text-gray-600 text-2xl font-bold">&times;</button>
+                </div>
             </header>
             <main id="data-table-container" class="p-4 overflow-y-auto"></main>
         </div>
@@ -1922,6 +1937,104 @@
             });
         }
 
+        // --- CENÁRIOS ---
+        // Guarda os cenários gravados (máximo 5)
+        let savedScenarios = [];
+
+        // Gera uma descrição textual do sistema, incluindo equipamentos, caudais, potências e temperaturas de saída
+        function generateScenarioDescription() {
+            const lines = [];
+            components.forEach(comp => {
+                let line = `ID ${comp.id}: ${comp.type}`;
+                const caudal = comp.results?.caudal;
+                if (caudal !== null && caudal !== undefined && !isNaN(caudal)) {
+                    line += ` - Caudal: ${caudal.toFixed(2)} kg/s`;
+                }
+                const pot = comp.results?.potencia;
+                if (pot !== null && pot !== undefined && !isNaN(pot)) {
+                    line += ` - Potência: ${(pot / 1000).toFixed(2)} kW`;
+                }
+                const tempOut = comp.results?.tempSaida;
+                if (tempOut !== null && tempOut !== undefined && !isNaN(tempOut)) {
+                    line += ` - T saída: ${tempOut.toFixed(1)} °C`;
+                }
+                lines.push(line);
+            });
+            return lines.join('<br>');
+        }
+
+        // Guarda o estado actual como um novo cenário (versão)
+        function saveCurrentScenario() {
+            // Garante que os resultados estão actualizados
+            runSteadyStateCalculation(false);
+            let sumElecKWh = 0;
+            let sumGasKWh = 0;
+            let sumPropKWh = 0;
+            components.forEach(comp => {
+                const totals = comp.totalConsumptions || { eletrico: 0, gasNatural: 0, propano: 0 };
+                sumElecKWh += (totals.eletrico || 0) / 1000;
+                sumGasKWh  += (totals.gasNatural || 0) / 1000;
+                sumPropKWh += (totals.propano || 0) / 1000;
+            });
+            const costElec = sumElecKWh * energyCosts.eletricidade;
+            const costGas  = sumGasKWh * energyCosts.gasNatural;
+            const costProp = sumPropKWh * energyCosts.propano;
+            const totalKWh = sumElecKWh + sumGasKWh + sumPropKWh;
+            const totalCost = costElec + costGas + costProp;
+            const imgData = canvas.toDataURL('image/png');
+            const desc = generateScenarioDescription();
+            let versionNumber = savedScenarios.length + 1;
+            if (versionNumber > 5) {
+                savedScenarios.shift();
+                versionNumber = 5;
+            }
+            const label = `Versão ${versionNumber}`;
+            savedScenarios.push({ label, sumElecKWh, sumGasKWh, sumPropKWh, costElec, costGas, costProp, totalKWh, totalCost, description: desc, image: imgData });
+            showMessage(`Cenário guardado como ${label}.`);
+        }
+
+        // Abre o modal de comparação de cenários
+        function showScenarioComparison() {
+            const modal = document.getElementById('scenario-modal');
+            const container = document.getElementById('scenario-comparison-container');
+            if (savedScenarios.length < 2) {
+                container.innerHTML = '<p class="text-sm text-gray-600">Guarde pelo menos duas versões para comparar.</p>';
+                modal.classList.remove('hidden');
+                return;
+            }
+            let html = '<div class="overflow-x-auto"><table class="w-full text-sm border"><thead><tr class="bg-gray-100"><th class="p-2 border">Indicador</th>';
+            savedScenarios.forEach(s => {
+                html += `<th class="p-2 border text-center">${s.label}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+            const rows = [
+                { label: 'Eletricidade (kWh)', key: 'sumElecKWh', decimals: 2 },
+                { label: 'Gás Natural (kWh)', key: 'sumGasKWh', decimals: 2 },
+                { label: 'Propano (kWh)', key: 'sumPropKWh', decimals: 2 },
+                { label: 'Total (kWh)', key: 'totalKWh', decimals: 2 },
+                { label: 'Custo Eletricidade (€)', key: 'costElec', decimals: 2 },
+                { label: 'Custo Gás Natural (€)', key: 'costGas', decimals: 2 },
+                { label: 'Custo Propano (€)', key: 'costProp', decimals: 2 },
+                { label: 'Custo Total (€)', key: 'totalCost', decimals: 2 }
+            ];
+            rows.forEach(row => {
+                html += `<tr><td class="p-2 border font-semibold">${row.label}</td>`;
+                savedScenarios.forEach(s => {
+                    const val = s[row.key];
+                    html += `<td class="p-2 border text-center">${val.toFixed(row.decimals)}</td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</tbody></table></div>';
+            html += '<div class="mt-4 grid gap-4" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">';
+            savedScenarios.forEach(s => {
+                html += `<div class="border p-2 rounded-lg shadow-sm"><h4 class="font-semibold mb-1">${s.label}</h4><img src="${s.image}" alt="${s.label}" class="w-full h-auto mb-2 border"><div class="text-xs leading-tight">${s.description}</div></div>`;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+            modal.classList.remove('hidden');
+        }
+
         // --- INICIALIZAÇÃO E EVENT LISTENERS ---
         window.addEventListener('resize', () => { setupCanvas(); draw(); });
         window.addEventListener('keydown', (e) => {
@@ -2436,6 +2549,15 @@
             }
             draw();
         }
+
+        // Associar botões de cenário
+        const saveScenarioBtn = document.getElementById('save-scenario-btn');
+        const compareScenariosBtn = document.getElementById('compare-scenarios-btn');
+        const scenarioModalEl = document.getElementById('scenario-modal');
+        const closeScenarioModalBtn = document.getElementById('close-scenario-modal-btn');
+        if (saveScenarioBtn) saveScenarioBtn.addEventListener('click', saveCurrentScenario);
+        if (compareScenariosBtn) compareScenariosBtn.addEventListener('click', showScenarioComparison);
+        if (closeScenarioModalBtn) closeScenarioModalBtn.addEventListener('click', () => { scenarioModalEl.classList.add('hidden'); });
 
         setupCanvas();
         populateLibrary();

@@ -149,6 +149,17 @@
             <main id="scenario-comparison-container" class="p-4 overflow-y-auto"></main>
         </div>
     </div>
+
+    <!-- Scenario Manager Modal -->
+    <div id="scenario-manager-modal" class="hidden fixed inset-0 z-40 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col">
+            <header class="p-4 border-b flex justify-between items-center">
+                <h2 class="text-xl font-bold text-gray-700">Gerir Cenários</h2>
+                <button id="close-scenario-manager-btn" class="text-gray-400 hover:text-gray-600 text-2xl font-bold">&times;</button>
+            </header>
+            <main id="scenario-manager-container" class="p-4 overflow-y-auto"></main>
+        </div>
+    </div>
         </div>
         <div class="flex items-center space-x-2 bg-gray-100 p-2 rounded-lg">
             <div class="text-center px-2">
@@ -181,6 +192,8 @@
             <button id="showTableBtn" class="bg-gray-500 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-gray-600 transition duration-300">Tabela</button>
             <button id="showChartBtn" class="bg-purple-500 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-purple-600 transition duration-300">Gráfico</button>
             <button id="energyCostBtn" class="bg-orange-500 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-orange-600 transition duration-300">Custos Energia</button>
+            <!-- Botão para gerir cenários -->
+            <button id="manageScenariosBtn" class="bg-cyan-500 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-cyan-600 transition duration-300">Cenários</button>
             <button id="simulateSteadyBtn" class="bg-blue-600 text-white font-semibold px-4 py-2 rounded-lg shadow hover:bg-blue-700 transition duration-300">Sim. Steady</button>
             <div class="flex items-center space-x-2 bg-gray-100 p-1 rounded-lg">
                  <button id="startDynamicBtn" class="bg-teal-500 text-white font-semibold px-4 py-1 rounded-lg shadow hover:bg-teal-600 transition duration-300">Sim. Dinâmica</button>
@@ -226,7 +239,8 @@
         <main class="flex-1 p-4 bg-gray-50 flex flex-col">
             <div id="canvas-container" class="relative flex-1 w-full h-full border-dashed border-2 border-gray-300 rounded-lg">
                 <canvas id="workspace"></canvas>
-                <div id="message-box" class="hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded-lg shadow-lg z-20" role="alert">
+                <!-- Mensagem de aviso/erro. Tornado fixed com z-index elevado para sobrepor todos os modais -->
+                <div id="message-box" class="hidden fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded-lg shadow-lg z-60" role="alert">
                     <strong class="font-bold">Aviso:</strong>
                     <span class="block sm:inline" id="message-text"></span>
                 </div>
@@ -504,6 +518,129 @@
             gasNatural: 0.05,
             propano: 0.15
         };
+
+        // --- Emission factors (kgCO2/kWh) ---
+        // Estes valores podem ser ajustados pelo utilizador no futuro via prompt ou opções de configuração.
+        let emissionFactors = {
+            // Fatores de emissão de CO2 (kg/kWh) para cada tipo de energia
+            eletricidade: 0.20,
+            gasNatural:   0.204,
+            propano:      0.241
+        };
+
+        // --- Parâmetros financeiros para VAL/PRI/TIR ---
+        // Taxa de desconto, horizonte de análise (anos) e diferença anual de manutenção face ao cenário base
+        let financeParams = {
+            taxaDesconto: 0.06,
+            horizonteAnos: 15,
+            manutencaoDeltaAnual: 0.0
+        };
+
+        // --- Regras de custo de instalação base (CAPEX) por tipo de equipamento ---
+        // Cada função recebe o componente e devolve o custo base (€). Estes custos são heurísticos.
+        const installCostRules = {
+            'Radiador':      (comp) => 120 + 40 * ((comp.params.potencia || 0) / 1000),
+            'Unidade de Tratamento de Ar': (comp) => 800 + 25 * ((comp.params.potencia || 0) / 1000),
+            'Bomba de Calor': (comp) => 2000 + 200 * ((comp.params.potencia || 0) / 1000),
+            'Caldeira':      (comp) => 1500 + 150 * ((comp.params.potencia || 0) / 1000),
+            'Bomba':         (comp) => 400 + 300 * ((comp.results?.caudal || 0)),
+            'Coletor':       (comp) => 150 + 50  * (((comp.params.numSaidas || 1) - 1)),
+            'Válvula de Regulação': (comp) => 60,
+            'Tubo':          (comp) => 5 * ((comp.params.comprimento || 0))
+        };
+
+        /**
+         * Calcula as emissões de CO2 (ton/ano) e a taxa de electrificação
+         * a partir dos consumos anuais de energia (kWh).
+         * @param {Object} cons - Objecto com chaves eletrico, gasNatural e propano (kWh).
+         * @returns {{tCO2: number, taxaEletrificacao: number}}
+         */
+        function computeEmissionsAndElectrification(cons) {
+            const co2 =
+                (cons.eletrico  * emissionFactors.eletricidade) +
+                (cons.gasNatural * emissionFactors.gasNatural) +
+                (cons.propano   * emissionFactors.propano);
+            const tCO2 = co2 / 1000; // converter kg para ton
+            const total = cons.eletrico + cons.gasNatural + cons.propano;
+            const taxaEletrificacao = total > 0 ? (cons.eletrico / total) : 0;
+            return { tCO2, taxaEletrificacao };
+        }
+
+        /**
+         * Estima o custo de instalação de um conjunto de componentes.
+         * Aplica uma margem de 50% sobre o custo base.
+         * @param {Array} comps - Lista de componentes do cenário.
+         * @returns {{base: number, capex: number}}
+         */
+        function estimateCapexForScenario(comps) {
+            let base = 0;
+            comps.forEach(comp => {
+                const estimator = installCostRules[comp.type];
+                if (typeof estimator === 'function') {
+                    const val = estimator(comp);
+                    if (val && !isNaN(val)) base += Math.max(0, val);
+                }
+            });
+            return { base, capex: base * 1.5 };
+        }
+
+        /**
+         * Solicita ao utilizador um valor de CAPEX. Se o utilizador não fornecer
+         * ou inserir um valor inválido, utiliza o valor por defeito.
+         * @param {number} defaultCapex 
+         * @returns {number}
+         */
+        function askUserCapexOverride(defaultCapex) {
+            const v = prompt(`CAPEX estimado para este cenário (€). Deixe vazio para usar o valor estimado: ${defaultCapex.toFixed(0)}`, '');
+            if (!v || !v.trim()) return defaultCapex;
+            const n = parseFloat(String(v).replace(',', '.'));
+            return (Number.isFinite(n) && n > 0) ? n : defaultCapex;
+        }
+
+        /**
+         * Calcula o OPEX anual com base nos consumos em kWh e custos de energia.
+         * @param {Object} consumosKWh - { eletrico, gasNatural, propano }
+         * @returns {number}
+         */
+        function computeAnnualOpex(consumosKWh) {
+            return consumosKWh.eletrico  * energyCosts.eletricidade +
+                   consumosKWh.gasNatural * energyCosts.gasNatural +
+                   consumosKWh.propano    * energyCosts.propano;
+        }
+
+        // --- Funções financeiras ---
+        function npv(rate, c0, c1, nYears) {
+            let v = -c0;
+            for (let t = 1; t <= nYears; t++) {
+                v += c1 / Math.pow(1 + rate, t);
+            }
+            return v;
+        }
+        function irr(c0, c1, nYears) {
+            // Busca binária para encontrar a TIR no intervalo [-0.99, 10]
+            let lo = -0.99, hi = 10.0;
+            for (let i = 0; i < 80; i++) {
+                const mid = (lo + hi) / 2;
+                const val = npv(mid, c0, c1, nYears);
+                if (val > 0) lo = mid; else hi = mid;
+            }
+            return (lo + hi) / 2;
+        }
+
+        /**
+         * Compara dois cenários para cálculo de PRI, VAL e TIR.
+         * @param {Object} base - Cenário base.
+         * @param {Object} comp - Cenário a comparar.
+         * @returns {{deltaCapex: number, deltaOpex: number, pri: number, val: number, tir: number}}
+         */
+        function compareVsBase(base, comp) {
+            const deltaCapex = comp.capex - base.capex;
+            const deltaOpex = (base.opex - comp.opex) + (financeParams.manutencaoDeltaAnual || 0);
+            const pri = deltaOpex > 0 ? (deltaCapex / deltaOpex) : Infinity;
+            const val = npv(financeParams.taxaDesconto || 0.06, deltaCapex, deltaOpex, financeParams.horizonteAnos || 15);
+            const tir = (deltaOpex > 0 && deltaCapex > 0) ? irr(deltaCapex, deltaOpex, financeParams.horizonteAnos || 15) : NaN;
+            return { deltaCapex, deltaOpex, pri, val, tir };
+        }
 
         // Função auxiliar para actualizar o atributo title do botão de custos com os valores actuais
         function updateEnergyCostTooltip() {
@@ -1035,49 +1172,70 @@
         function showDataTable() {
             const container = document.getElementById('data-table-container');
             
-            // Table 1: Energy Consumption
+            // Table 1: Energy Consumption with CO₂ and Electrification
             let consumptionTableHTML = `<h3 class="text-lg font-semibold mb-2 text-gray-800">Consumos Anuais de Energia por Equipamento (Resultados da Simulação Dinâmica)</h3>
                 <table><thead><tr>
                     <th>ID</th><th>Tipo</th>
                     <th>Eletricidade (kWh)</th><th>Gás Natural (kWh)</th><th>Propano (kWh)</th>
+                    <th>tCO₂ (t/ano)</th><th>Eletrificação (%)</th>
                 </tr></thead><tbody>`;
 
             // Accumulators for totals
             let sumElecKWh = 0;
-            let sumGasKWh = 0;
+            let sumGasKWh  = 0;
             let sumPropKWh = 0;
+            let sumTCO2 = 0;
             components.forEach(comp => {
                 const totals = comp.totalConsumptions || { eletrico: 0, gasNatural: 0, propano: 0 };
-                const elecKWh = totals.eletrico / 1000;
-                const gasKWh = totals.gasNatural / 1000;
-                const propKWh = totals.propano / 1000;
+                const elecKWh = (totals.eletrico || 0) / 1000;
+                const gasKWh  = (totals.gasNatural || 0) / 1000;
+                const propKWh = (totals.propano || 0) / 1000;
                 sumElecKWh += elecKWh;
-                sumGasKWh += gasKWh;
+                sumGasKWh  += gasKWh;
                 sumPropKWh += propKWh;
+                // Compute CO2 and electrification per component
+                const { tCO2, taxaEletrificacao } = computeEmissionsAndElectrification({
+                    eletrico: elecKWh,
+                    gasNatural: gasKWh,
+                    propano: propKWh
+                });
+                sumTCO2 += tCO2;
+                const eletricPct = taxaEletrificacao * 100;
                 consumptionTableHTML += `<tr>
                     <td>${comp.id}</td>
                     <td class="font-bold">${comp.type}</td>
                     <td>${elecKWh.toFixed(2)}</td>
                     <td>${gasKWh.toFixed(2)}</td>
                     <td>${propKWh.toFixed(2)}</td>
+                    <td>${tCO2.toFixed(3)}</td>
+                    <td>${eletricPct.toFixed(1)}</td>
                 </tr>`;
             });
-            // Totals row
+            // Totals row including CO₂ and electrification
+            const totalKWhSum = sumElecKWh + sumGasKWh + sumPropKWh;
+            const { tCO2: totalTCO2, taxaEletrificacao: totalElecRate } = computeEmissionsAndElectrification({
+                eletrico: sumElecKWh,
+                gasNatural: sumGasKWh,
+                propano: sumPropKWh
+            });
             consumptionTableHTML += `<tr class="font-semibold border-t">
                 <td colspan="2">Total (kWh)</td>
                 <td>${sumElecKWh.toFixed(2)}</td>
                 <td>${sumGasKWh.toFixed(2)}</td>
                 <td>${sumPropKWh.toFixed(2)}</td>
+                <td>${totalTCO2.toFixed(3)}</td>
+                <td>${(totalElecRate * 100).toFixed(1)}</td>
             </tr>`;
             // Cost row using current energyCosts
             const costElec = (sumElecKWh * energyCosts.eletricidade).toFixed(2);
-            const costGas = (sumGasKWh * energyCosts.gasNatural).toFixed(2);
+            const costGas  = (sumGasKWh  * energyCosts.gasNatural).toFixed(2);
             const costProp = (sumPropKWh * energyCosts.propano).toFixed(2);
             consumptionTableHTML += `<tr class="font-semibold">
                 <td colspan="2">Custo (€)</td>
                 <td>${costElec}</td>
                 <td>${costGas}</td>
                 <td>${costProp}</td>
+                <td colspan="2"></td>
             </tr>`;
             consumptionTableHTML += '</tbody></table>';
 
@@ -1340,6 +1498,37 @@
             if (totalProductionPower < totalConsumptionPower) {
                 errors.push(`Potência de produção nominal insuficiente. Produção: ${(totalProductionPower/1000).toFixed(1)} kW, Consumo: ${(totalConsumptionPower/1000).toFixed(1)} kW.`);
             }
+
+            // --- Verificação de conectividade dos equipamentos ---
+            // Para cada componente, verifica-se se todos os seus conectores (entradas e saídas) estão ligados.
+            // Usa-se as definições de inputs/outputs da template, ou os arrays personalizados nos coletores.
+            components.forEach(comp => {
+                const template = componentTemplates[comp.type];
+                if (!template) return;
+                // Determinar os conectores de entrada e saída
+                let inputs = [];
+                let outputs = [];
+                if (comp.type === 'Coletor' && Array.isArray(comp.inputs) && Array.isArray(comp.outputs)) {
+                    inputs = comp.inputs;
+                    outputs = comp.outputs;
+                } else {
+                    inputs = Array.isArray(template.inputs) ? template.inputs : [];
+                    outputs = Array.isArray(template.outputs) ? template.outputs : [];
+                }
+                const totalConnectors = (inputs ? inputs.length : 0) + (outputs ? outputs.length : 0);
+                let usedConnectors = 0;
+                // Contar quantos conectores deste componente são usados nas ligações
+                connections.forEach(conn => {
+                    if (conn.from && conn.from.id === comp.id) usedConnectors++;
+                    if (conn.to && conn.to.id === comp.id) usedConnectors++;
+                });
+                if (usedConnectors < totalConnectors) {
+                    const missing = totalConnectors - usedConnectors;
+                    const name = comp.label || comp.type;
+                    errors.push(`O equipamento "${name}" (ID ${comp.id}) tem ${missing} conector(es) sem ligação.`);
+                }
+            });
+
             return errors;
         }
 
@@ -1421,8 +1610,11 @@
                         conn.caudal = branchCaudal;
                         const nextComp = compMap.get(conn.to.id);
                         if (nextComp) {
-                            nextComp.results.caudal = (nextComp.results.caudal || 0) + branchCaudal;
-                            queue.push(nextComp);
+                            // Evita acumular caudal na bomba para não duplicar
+                            if (nextComp.id !== pump.id) {
+                                nextComp.results.caudal = (nextComp.results.caudal || 0) + branchCaudal;
+                                queue.push(nextComp);
+                            }
                         }
                         processedConns.add(conn);
                     });
@@ -1470,8 +1662,11 @@
                             obj.conn.caudal = flow;
                             const nextComp = compMap.get(obj.conn.to.id);
                             if (nextComp) {
-                                nextComp.results.caudal = (nextComp.results.caudal || 0) + flow;
-                                queue.push(nextComp);
+                                // Não somar caudal na bomba para evitar duplicação
+                                if (nextComp.id !== pump.id) {
+                                    nextComp.results.caudal = (nextComp.results.caudal || 0) + flow;
+                                    queue.push(nextComp);
+                                }
                             }
                             processedConns.add(obj.conn);
                         });
@@ -1479,8 +1674,10 @@
                             conn.caudal = 0;
                             const nextComp = compMap.get(conn.to.id);
                             if (nextComp) {
-                                nextComp.results.caudal = (nextComp.results.caudal || 0);
-                                // não enfileira porque o caudal é zero
+                                if (nextComp.id !== pump.id) {
+                                    nextComp.results.caudal = (nextComp.results.caudal || 0);
+                                    // não enfileira porque o caudal é zero
+                                }
                             }
                             processedConns.add(conn);
                         });
@@ -1490,8 +1687,10 @@
                             obj.conn.caudal = flow;
                             const nextComp = compMap.get(obj.conn.to.id);
                             if (nextComp) {
-                                nextComp.results.caudal = (nextComp.results.caudal || 0) + flow;
-                                queue.push(nextComp);
+                                if (nextComp.id !== pump.id) {
+                                    nextComp.results.caudal = (nextComp.results.caudal || 0) + flow;
+                                    queue.push(nextComp);
+                                }
                             }
                             processedConns.add(obj.conn);
                         });
@@ -1501,8 +1700,10 @@
                             conn.caudal = equalShare;
                             const nextComp = compMap.get(conn.to.id);
                             if (nextComp) {
-                                nextComp.results.caudal = (nextComp.results.caudal || 0) + equalShare;
-                                queue.push(nextComp);
+                                if (nextComp.id !== pump.id) {
+                                    nextComp.results.caudal = (nextComp.results.caudal || 0) + equalShare;
+                                    queue.push(nextComp);
+                                }
                             }
                             processedConns.add(conn);
                         });
@@ -1514,8 +1715,10 @@
                         conn.caudal = incomingCaudal;
                         const nextComp = compMap.get(conn.to.id);
                         if (nextComp) {
-                            nextComp.results.caudal = (nextComp.results.caudal || 0) + incomingCaudal;
-                            queue.push(nextComp);
+                            if (nextComp.id !== pump.id) {
+                                nextComp.results.caudal = (nextComp.results.caudal || 0) + incomingCaudal;
+                                queue.push(nextComp);
+                            }
                         }
                         processedConns.add(conn);
                     });
@@ -1950,13 +2153,32 @@
                 if (caudal !== null && caudal !== undefined && !isNaN(caudal)) {
                     line += ` - Caudal: ${caudal.toFixed(2)} kg/s`;
                 }
+                // Potência térmica (kW)
                 const pot = comp.results?.potencia;
                 if (pot !== null && pot !== undefined && !isNaN(pot)) {
                     line += ` - Potência: ${(pot / 1000).toFixed(2)} kW`;
                 }
+                // Temperatura de saída
                 const tempOut = comp.results?.tempSaida;
                 if (tempOut !== null && tempOut !== undefined && !isNaN(tempOut)) {
                     line += ` - T saída: ${tempOut.toFixed(1)} °C`;
+                }
+                // Adicional: potencia eléctrica para bombas e distribuição, e COP/EER/rendimento para produção
+                const category = componentTemplates[comp.type]?.category;
+                if ((category === 'Impulsão' || category === 'Distribuição') && comp.params && comp.params.potEletrica) {
+                    const pElec = comp.params.potEletrica;
+                    if (pElec !== null && pElec !== undefined && !isNaN(pElec)) {
+                        line += ` - P. Elétrica: ${(pElec / 1000).toFixed(2)} kW`;
+                    }
+                }
+                if (category === 'Produção' && comp.params) {
+                    if (comp.params.COP !== undefined && comp.params.COP !== null) {
+                        line += ` - COP: ${comp.params.COP}`;
+                    } else if (comp.params.EER !== undefined && comp.params.EER !== null) {
+                        line += ` - EER: ${comp.params.EER}`;
+                    } else if (comp.params.rendimento !== undefined && comp.params.rendimento !== null) {
+                        line += ` - Rendimento: ${comp.params.rendimento}`;
+                    }
                 }
                 lines.push(line);
             });
@@ -1967,8 +2189,9 @@
         function saveCurrentScenario() {
             // Garante que os resultados estão actualizados
             runSteadyStateCalculation(false);
+            // Somar consumos anuais por tipo de energia (kWh)
             let sumElecKWh = 0;
-            let sumGasKWh = 0;
+            let sumGasKWh  = 0;
             let sumPropKWh = 0;
             components.forEach(comp => {
                 const totals = comp.totalConsumptions || { eletrico: 0, gasNatural: 0, propano: 0 };
@@ -1976,37 +2199,73 @@
                 sumGasKWh  += (totals.gasNatural || 0) / 1000;
                 sumPropKWh += (totals.propano || 0) / 1000;
             });
+            // Custos anuais de energia (OPEX)
             const costElec = sumElecKWh * energyCosts.eletricidade;
-            const costGas  = sumGasKWh * energyCosts.gasNatural;
+            const costGas  = sumGasKWh  * energyCosts.gasNatural;
             const costProp = sumPropKWh * energyCosts.propano;
-            const totalKWh = sumElecKWh + sumGasKWh + sumPropKWh;
+            const totalKWh  = sumElecKWh + sumGasKWh + sumPropKWh;
             const totalCost = costElec + costGas + costProp;
+            const opex = totalCost;
+            // Emissões e electrificação
+            const emRes = computeEmissionsAndElectrification({ eletrico: sumElecKWh, gasNatural: sumGasKWh, propano: sumPropKWh });
+            const tCO2 = emRes.tCO2;
+            const taxaEletrificacao = emRes.taxaEletrificacao;
+            // Estimar CAPEX (base + margem) e solicitar override ao utilizador
+            const capexRes = estimateCapexForScenario(components);
+            const capexUser = askUserCapexOverride(capexRes.capex);
+            // Capturar imagem e descrição
             const imgData = canvas.toDataURL('image/png');
             const desc = generateScenarioDescription();
+            // Limitar a 5 cenários no histórico; remove o mais antigo se exceder
             let versionNumber = savedScenarios.length + 1;
             if (versionNumber > 5) {
                 savedScenarios.shift();
                 versionNumber = 5;
             }
-            const label = `Versão ${versionNumber}`;
-            savedScenarios.push({ label, sumElecKWh, sumGasKWh, sumPropKWh, costElec, costGas, costProp, totalKWh, totalCost, description: desc, image: imgData });
-            showMessage(`Cenário guardado como ${label}.`);
+            const label = `Cenário ${versionNumber}`;
+            const isFirstScenario = (savedScenarios.length === 0);
+            savedScenarios.push({
+                label: label,
+                sumElecKWh: sumElecKWh,
+                sumGasKWh: sumGasKWh,
+                sumPropKWh: sumPropKWh,
+                costElec: costElec,
+                costGas: costGas,
+                costProp: costProp,
+                totalKWh: totalKWh,
+                totalCost: totalCost,
+                opex: opex,
+                tCO2: tCO2,
+                taxaEletrificacao: taxaEletrificacao,
+                capex: capexUser,
+                description: desc,
+                image: imgData,
+                base: isFirstScenario,
+                compare: false
+            });
+            if (isFirstScenario) {
+                savedScenarios[0].base = true;
+            }
+            showMessage(`${label} gravado.`);
         }
 
         // Abre o modal de comparação de cenários
         function showScenarioComparison() {
             const modal = document.getElementById('scenario-modal');
             const container = document.getElementById('scenario-comparison-container');
-            if (savedScenarios.length < 2) {
+            if (!savedScenarios || savedScenarios.length < 2) {
                 container.innerHTML = '<p class="text-sm text-gray-600">Guarde pelo menos duas versões para comparar.</p>';
                 modal.classList.remove('hidden');
                 return;
             }
-            let html = '<div class="overflow-x-auto"><table class="w-full text-sm border"><thead><tr class="bg-gray-100"><th class="p-2 border">Indicador</th>';
+            // Cabeçalho
+            let html = '<div class="overflow-x-auto"><table class="w-full text-sm border"><thead><tr class="bg-gray-100">';
+            html += '<th class="p-2 border">Indicador</th>';
             savedScenarios.forEach(s => {
                 html += `<th class="p-2 border text-center">${s.label}</th>`;
             });
             html += '</tr></thead><tbody>';
+            // Linhas com todas as métricas (incluindo OPEX, CAPEX, emissões e electrificação)
             const rows = [
                 { label: 'Eletricidade (kWh)', key: 'sumElecKWh', decimals: 2 },
                 { label: 'Gás Natural (kWh)', key: 'sumGasKWh', decimals: 2 },
@@ -2015,20 +2274,267 @@
                 { label: 'Custo Eletricidade (€)', key: 'costElec', decimals: 2 },
                 { label: 'Custo Gás Natural (€)', key: 'costGas', decimals: 2 },
                 { label: 'Custo Propano (€)', key: 'costProp', decimals: 2 },
-                { label: 'Custo Total (€)', key: 'totalCost', decimals: 2 }
+                { label: 'Custo Total (€)', key: 'totalCost', decimals: 2 },
+                { label: 'OPEX (€/ano)', key: 'opex', decimals: 2 },
+                { label: 'CAPEX (€)', key: 'capex', decimals: 0 },
+                { label: 'tCO₂ (t/ano)', key: 'tCO2', decimals: 3 },
+                { label: 'Eletrificação (%)', key: 'taxaEletrificacao', decimals: 1, percent: true }
             ];
             rows.forEach(row => {
                 html += `<tr><td class="p-2 border font-semibold">${row.label}</td>`;
                 savedScenarios.forEach(s => {
-                    const val = s[row.key];
-                    html += `<td class="p-2 border text-center">${val.toFixed(row.decimals)}</td>`;
+                    let val = s[row.key];
+                    if (row.percent) val = (val || 0) * 100;
+                    const display = (typeof val === 'number' && !isNaN(val)) ? val.toFixed(row.decimals) : '--';
+                    html += `<td class="p-2 border text-center">${display}</td>`;
                 });
                 html += '</tr>';
             });
             html += '</tbody></table></div>';
+            // Cartões com miniaturas
             html += '<div class="mt-4 grid gap-4" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">';
             savedScenarios.forEach(s => {
-                html += `<div class="border p-2 rounded-lg shadow-sm"><h4 class="font-semibold mb-1">${s.label}</h4><img src="${s.image}" alt="${s.label}" class="w-full h-auto mb-2 border"><div class="text-xs leading-tight">${s.description}</div></div>`;
+                html += `<div class="border p-2 rounded-lg shadow-sm">
+                    <h4 class="font-semibold mb-1">${s.label}${s.base ? ' (Base)' : ''}</h4>
+                    <img src="${s.image}" alt="${s.label}" class="w-full h-auto mb-2 border">
+                    <div class="text-xs leading-tight">${s.description}</div>
+                </div>`;
+            });
+            html += '</div>';
+            container.innerHTML = html;
+            modal.classList.remove('hidden');
+        }
+
+        // Renumera as etiquetas dos cenários guardados após adições ou remoções
+        function renumberScenarios() {
+            savedScenarios.forEach((s, idx) => {
+                s.label = `Cenário ${idx + 1}`;
+            });
+        }
+
+        // Remove um cenário pelo índice e actualiza o gestor de cenários
+        function deleteScenario(index) {
+            if (index >= 0 && index < savedScenarios.length) {
+                savedScenarios.splice(index, 1);
+                renumberScenarios();
+                renderScenarioManager();
+            }
+        }
+
+        /**
+         * Marca um cenário como base e desmarca os restantes. O cenário base não pode ser marcado como comparativo.
+         * @param {number} index
+         */
+        function setScenarioBase(index) {
+            savedScenarios.forEach((s, idx) => {
+                s.base = (idx === index);
+                // Se é base, remove qualquer marcação de comparação
+                if (idx === index) {
+                    s.compare = false;
+                }
+            });
+        }
+
+        /**
+         * Define se um cenário está seleccionado para comparação.
+         * @param {number} index
+         * @param {boolean} checked
+         */
+        function toggleScenarioCompare(index, checked) {
+            savedScenarios[index].compare = checked;
+        }
+
+        // Constrói o modal de gestão de cenários com lista, selecção e acções
+        function renderScenarioManager() {
+            const container = document.getElementById('scenario-manager-container');
+            // Se não houver cenários, informa o utilizador
+            if (savedScenarios.length === 0) {
+                container.innerHTML = '<p class="text-sm text-gray-600">Nenhum cenário gravado. Execute uma simulação e utilize "Guardar Versão" na tabela para criar um.</p>';
+                return;
+            }
+            let html = '';
+            html += '<p class="text-sm text-gray-600 mb-2">Seleccione um cenário base e um ou mais cenários a comparar. Pode também apagar cenários existentes.</p>';
+            html += '<div class="space-y-2">';
+            savedScenarios.forEach((s, idx) => {
+                const isBase = s.base;
+                const isCompare = s.compare;
+                const roleText = isBase ? 'Cenário Base' : (isCompare ? 'Cenário Alternativo' : '');
+                html += `<div class="flex items-center justify-between border p-2 rounded-lg">
+                    <div class="flex items-center space-x-3">
+                        <input type="radio" name="baseScenario" value="${idx}" id="base-${idx}" class="h-4 w-4 text-blue-600" ${isBase ? 'checked' : ''}>
+                        <input type="checkbox" class="compareScenario h-4 w-4 text-green-600" value="${idx}" id="comp-${idx}" ${isCompare ? 'checked' : ''}>
+                        <label for="comp-${idx}" class="font-semibold text-gray-700 select-none">${s.label}</label>
+                        <span class="text-xs italic text-gray-500">${roleText}</span>
+                    </div>
+                    <button class="delete-scenario-btn text-red-600 hover:text-red-800" data-index="${idx}" title="Apagar">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>`;
+            });
+            html += '</div>';
+            html += '<div class="mt-4 flex justify-end space-x-2">';
+            html += '<button id="compare-selected-scenarios-btn" class="bg-blue-500 text-white px-4 py-2 rounded-md shadow hover:bg-blue-600 transition text-sm">Comparar</button>';
+            html += '</div>';
+            container.innerHTML = html;
+            // Attach event listener for deletion
+            container.querySelectorAll('.delete-scenario-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const index = parseInt(btn.getAttribute('data-index'));
+                    deleteScenario(index);
+                });
+            });
+            // Event listeners para actualizar base/alternativo
+            container.querySelectorAll('input[name="baseScenario"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    const idx = parseInt(e.target.value);
+                    setScenarioBase(idx);
+                    renderScenarioManager();
+                });
+            });
+            container.querySelectorAll('input.compareScenario').forEach(cb => {
+                cb.addEventListener('change', (e) => {
+                    const idx = parseInt(e.target.value);
+                    toggleScenarioCompare(idx, e.target.checked);
+                    renderScenarioManager();
+                });
+            });
+            // Attach event listener for compare action
+            const compareBtn = document.getElementById('compare-selected-scenarios-btn');
+            compareBtn.addEventListener('click', () => {
+                const baseRadio = container.querySelector('input[name="baseScenario"]:checked');
+                const compCheckboxes = Array.from(container.querySelectorAll('input.compareScenario:checked'));
+                if (!baseRadio) {
+                    showMessage('Seleccione um cenário base.', true);
+                    return;
+                }
+                const baseIndex = parseInt(baseRadio.value);
+                const compareIndices = compCheckboxes.map(cb => parseInt(cb.value)).filter(idx => idx !== baseIndex);
+                if (compareIndices.length === 0) {
+                    showMessage('Seleccione pelo menos um cenário para comparar.', true);
+                    return;
+                }
+                // Fechar o modal de gestão de cenários antes de abrir a comparação
+                const mgrModal = document.getElementById('scenario-manager-modal');
+                if (mgrModal) mgrModal.classList.add('hidden');
+                showScenarioDifference(baseIndex, compareIndices);
+            });
+        }
+
+        // Mostra um quadro comparativo entre um cenário base e outros cenários seleccionados, com diferenças
+        function showScenarioDifference(baseIndex, compareIndices) {
+            const base = savedScenarios[baseIndex];
+            const modal = document.getElementById('scenario-modal');
+            const container = document.getElementById('scenario-comparison-container');
+            // Construir tabela comparativa com métricas alargadas
+            let html = '<div class="overflow-x-auto"><table class="w-full text-sm border">';
+            html += '<thead><tr class="bg-gray-100">';
+            html += '<th class="p-2 border">Indicador</th>';
+            html += `<th class="p-2 border text-center">${base.label} (Base)</th>`;
+            compareIndices.forEach(idx => {
+                const s = savedScenarios[idx];
+                html += `<th class="p-2 border text-center">${s.label}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+            // Métricas absolutas com CO₂, eletrificação, OPEX e CAPEX
+            const metrics = [
+                { label: 'OPEX (€/ano)', key: 'opex', decimals: 2 },
+                { label: 'CAPEX (€)', key: 'capex', decimals: 0 },
+                { label: 'tCO₂ (t/ano)', key: 'tCO2', decimals: 3 },
+                { label: 'Eletrificação (%)', key: 'taxaEletrificacao', decimals: 1, percent: true }
+            ];
+            metrics.forEach(row => {
+                html += `<tr><td class="p-2 border font-semibold">${row.label}</td>`;
+                // Valor base
+                let baseVal = base[row.key];
+                if (row.percent) baseVal = (baseVal || 0) * 100;
+                const baseDisplay = (typeof baseVal === 'number' && !isNaN(baseVal)) ? baseVal.toFixed(row.decimals) : '--';
+                html += `<td class="p-2 border text-center font-semibold">${baseDisplay}</td>`;
+                // Valores comparativos com diferença
+                compareIndices.forEach(idx => {
+                    const s = savedScenarios[idx];
+                    let val = s[row.key];
+                    if (row.percent) val = (val || 0) * 100;
+                    const display = (typeof val === 'number' && !isNaN(val)) ? val.toFixed(row.decimals) : '--';
+                    const diff = (val || 0) - (baseVal || 0);
+                    const diffStr = (typeof diff === 'number' && !isNaN(diff)) ? ((diff >= 0 ? '+' : '') + diff.toFixed(row.decimals)) : '';
+                    html += `<td class="p-2 border text-center">${display}<br><span class="text-xs ${diff >= 0 ? 'text-green-600' : 'text-red-600'}">(${diffStr})</span></td>`;
+                });
+                html += '</tr>';
+            });
+            // Secção de diferenças e indicadores financeiros
+            html += '<tr class="bg-gray-50"><td colspan="' + (2 + compareIndices.length) + '" class="p-2 border font-semibold text-center">Diferenças e Indicadores Financeiros (vs Base)</td></tr>';
+            // Delta CAPEX
+            html += '<tr><td class="p-2 border font-semibold">Δ CAPEX (€)</td><td class="p-2 border"></td>';
+            compareIndices.forEach(idx => {
+                const s = savedScenarios[idx];
+                const deltaCapex = s.capex - base.capex;
+                html += `<td class="p-2 border text-center">${(deltaCapex >= 0 ? '+' : '') + deltaCapex.toFixed(0)}</td>`;
+            });
+            html += '</tr>';
+            // Delta OPEX
+            html += '<tr><td class="p-2 border font-semibold">Δ OPEX (€/ano)</td><td class="p-2 border"></td>';
+            compareIndices.forEach(idx => {
+                const s = savedScenarios[idx];
+                const deltaOpex = (base.opex - s.opex) + (financeParams.manutencaoDeltaAnual || 0);
+                html += `<td class="p-2 border text-center">${(deltaOpex >= 0 ? '+' : '') + deltaOpex.toFixed(0)}</td>`;
+            });
+            html += '</tr>';
+            // Delta tCO2
+            html += '<tr><td class="p-2 border font-semibold">Δ tCO₂ (t/ano)</td><td class="p-2 border"></td>';
+            compareIndices.forEach(idx => {
+                const s = savedScenarios[idx];
+                const deltaCO2 = (s.tCO2 - base.tCO2);
+                html += `<td class="p-2 border text-center">${(deltaCO2 >= 0 ? '+' : '') + deltaCO2.toFixed(3)}</td>`;
+            });
+            html += '</tr>';
+            // Delta Eletrificação
+            html += '<tr><td class="p-2 border font-semibold">Δ Eletrificação (%)</td><td class="p-2 border"></td>';
+            compareIndices.forEach(idx => {
+                const s = savedScenarios[idx];
+                const deltaElec = (s.taxaEletrificacao - base.taxaEletrificacao) * 100;
+                html += `<td class="p-2 border text-center">${(deltaElec >= 0 ? '+' : '') + deltaElec.toFixed(1)}</td>`;
+            });
+            html += '</tr>';
+            // Indicadores financeiros (VAL, PRI, TIR)
+            html += '<tr><td class="p-2 border font-semibold">VAL (€)</td><td class="p-2 border"></td>';
+            compareIndices.forEach(idx => {
+                const s = savedScenarios[idx];
+                const { val } = compareVsBase(base, s);
+                html += `<td class="p-2 border text-center">${val.toFixed(0)}</td>`;
+            });
+            html += '</tr>';
+            html += '<tr><td class="p-2 border font-semibold">PRI (anos)</td><td class="p-2 border"></td>';
+            compareIndices.forEach(idx => {
+                const s = savedScenarios[idx];
+                const { pri } = compareVsBase(base, s);
+                const displayPri = (isFinite(pri) && pri >= 0) ? pri.toFixed(1) : '—';
+                html += `<td class="p-2 border text-center">${displayPri}</td>`;
+            });
+            html += '</tr>';
+            html += '<tr><td class="p-2 border font-semibold">TIR (%)</td><td class="p-2 border"></td>';
+            compareIndices.forEach(idx => {
+                const s = savedScenarios[idx];
+                const { tir } = compareVsBase(base, s);
+                const displayTir = (isFinite(tir)) ? (tir * 100).toFixed(1) + '%' : '—';
+                html += `<td class="p-2 border text-center">${displayTir}</td>`;
+            });
+            html += '</tr>';
+            html += '</tbody></table></div>';
+            // Cartões com miniaturas e descrições
+            html += '<div class="mt-4 grid gap-4" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">';
+            // Base card
+            html += `<div class="border p-2 rounded-lg shadow-sm">
+                <h4 class="font-semibold mb-1">${base.label} (Base)</h4>
+                <img src="${base.image}" alt="${base.label}" class="w-full h-auto mb-2 border">
+                <div class="text-xs leading-tight">${base.description}</div>
+            </div>`;
+            compareIndices.forEach(idx => {
+                const s = savedScenarios[idx];
+                html += `<div class="border p-2 rounded-lg shadow-sm">
+                    <h4 class="font-semibold mb-1">${s.label}</h4>
+                    <img src="${s.image}" alt="${s.label}" class="w-full h-auto mb-2 border">
+                    <div class="text-xs leading-tight">${s.description}</div>
+                </div>`;
             });
             html += '</div>';
             container.innerHTML = html;
@@ -2555,9 +3061,28 @@
         const compareScenariosBtn = document.getElementById('compare-scenarios-btn');
         const scenarioModalEl = document.getElementById('scenario-modal');
         const closeScenarioModalBtn = document.getElementById('close-scenario-modal-btn');
-        if (saveScenarioBtn) saveScenarioBtn.addEventListener('click', saveCurrentScenario);
-        if (compareScenariosBtn) compareScenariosBtn.addEventListener('click', showScenarioComparison);
+        if (saveScenarioBtn) saveScenarioBtn.addEventListener('click', () => {
+            // Fechar a Tabela de Equipamentos e Dados antes de guardar o cenário
+            hideDataTable();
+            saveCurrentScenario();
+        });
+        if (compareScenariosBtn) compareScenariosBtn.addEventListener('click', () => {
+            // Fechar a Tabela de Equipamentos e Dados antes de abrir a comparação de cenários
+            hideDataTable();
+            showScenarioComparison();
+        });
         if (closeScenarioModalBtn) closeScenarioModalBtn.addEventListener('click', () => { scenarioModalEl.classList.add('hidden'); });
+        // Gestão de cenários: inicializar botões e modal
+        const manageScenariosBtn = document.getElementById('manageScenariosBtn');
+        const scenarioManagerModalEl = document.getElementById('scenario-manager-modal');
+        const closeScenarioManagerBtn = document.getElementById('close-scenario-manager-btn');
+        if (manageScenariosBtn) manageScenariosBtn.addEventListener('click', () => {
+            renderScenarioManager();
+            scenarioManagerModalEl.classList.remove('hidden');
+        });
+        if (closeScenarioManagerBtn) closeScenarioManagerBtn.addEventListener('click', () => {
+            scenarioManagerModalEl.classList.add('hidden');
+        });
 
         setupCanvas();
         populateLibrary();
